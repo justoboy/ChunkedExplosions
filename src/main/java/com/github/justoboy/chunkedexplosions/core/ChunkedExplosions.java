@@ -59,9 +59,8 @@ public class ChunkedExplosions {
     }
 
     public void tick() {
-        int blocksPerTick = 128; // Number of blocks to destroy per tick
         if (!explosionQueue.isEmpty()) {
-            for (int i = 0; i < blocksPerTick; i++) {
+            for (int i = 0; i < ModConfig.getExplosionsPerTick() || ModConfig.getExplosionsPerTick() == 0; i++) {
                 ChunkedExplosion queuedExplosion = explosionQueue.poll();
                 if (queuedExplosion != null) {
                     if (queuedExplosion.tick()) {

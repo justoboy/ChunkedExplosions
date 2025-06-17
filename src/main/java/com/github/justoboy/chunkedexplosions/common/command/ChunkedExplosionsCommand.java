@@ -12,6 +12,8 @@ public class ChunkedExplosionsCommand {
                 Commands.literal("chunkedexplosions")
                         .then(HelpCommand.register(buildContext))
                         .then(EnableCommand.register(buildContext))
+                        .then(BlocksPerExplosionTickCommand.register(buildContext))
+                        .then(ExplosionsPerTickCommand.register(buildContext))
         );
     }
 }

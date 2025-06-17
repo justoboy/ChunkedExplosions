@@ -101,7 +101,7 @@ public abstract class ExplosionMixin {
 
     @Unique
     private void chunked_explode() {
-        int blocksPerPass = 1; // Number of blocks to destroy per function pass
+        int blocksPerPass = ModConfig.getBlocksPerExplosionTick(); // Number of blocks to destroy per function pass
         int blocksPassed = 0;
         this.clearToBlow();
         // Trigger a game event for explosion at the specified position
@@ -113,9 +113,9 @@ public abstract class ExplosionMixin {
         // Define the size of the explosion grid (16x16x16)
         int gridSize = 16;
         // Iterate over each point in the 3D grid
-        while (chunkedexplosions$xIndex < gridSize && blocksPassed < blocksPerPass) {
-            while (chunkedexplosions$yIndex < gridSize && blocksPassed < blocksPerPass) {
-                while (chunkedexplosions$zIndex < gridSize && blocksPassed < blocksPerPass) {
+        while (chunkedexplosions$xIndex < gridSize && (blocksPassed < blocksPerPass || blocksPerPass == 0)) {
+            while (chunkedexplosions$yIndex < gridSize && (blocksPassed < blocksPerPass || blocksPerPass == 0)) {
+                while (chunkedexplosions$zIndex < gridSize && (blocksPassed < blocksPerPass || blocksPerPass == 0)) {
                     if (chunkedexplosions$xIndex == 0 || chunkedexplosions$xIndex == gridSize - 1 || chunkedexplosions$yIndex == 0 || chunkedexplosions$yIndex == gridSize - 1 || chunkedexplosions$zIndex == 0 || chunkedexplosions$zIndex == gridSize - 1) {
                         // Calculate normalized coordinates within the grid
                         double normalizedX = ((float) chunkedexplosions$xIndex / gridSize * 2.0F) - 1.0F;

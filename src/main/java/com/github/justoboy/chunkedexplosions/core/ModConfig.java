@@ -20,11 +20,17 @@ public class ModConfig {
 
     public static class Config {
         public final ForgeConfigSpec.BooleanValue enable;
+        public final ForgeConfigSpec.ConfigValue<Integer> blocksPerExplosionTick;
+        public final ForgeConfigSpec.ConfigValue<Integer> explosionsPerTick;
 
         Config(ForgeConfigSpec.Builder builder) {
             builder.push("general");
             enable = builder.comment(CommandComments.getComment("enable"))
                     .define("enable", true);
+            blocksPerExplosionTick = builder.comment(CommandComments.getComment("blocksPerExplosionTick"))
+                    .define("blocksPerExplosionTick", 128);
+            explosionsPerTick = builder.comment(CommandComments.getComment("explosionsPerTick"))
+                    .define("blocksPerExplosionTick", -1);
             builder.pop();
         }
     }
@@ -32,8 +38,13 @@ public class ModConfig {
     public static boolean isEnable() {
         return COMMON_CONFIG.enable.get();
     }
-
     public static void setEnable(boolean value) {
         COMMON_CONFIG.enable.set(value);
     }
+
+    public static int getBlocksPerExplosionTick() { return COMMON_CONFIG.blocksPerExplosionTick.get(); }
+    public static void setBlocksPerExplosionTick(int value) { COMMON_CONFIG.blocksPerExplosionTick.set(value); }
+
+    public static int getExplosionsPerTick() { return COMMON_CONFIG.explosionsPerTick.get(); }
+    public static void setExplosionsPerTick(int value) { COMMON_CONFIG.explosionsPerTick.set(value); }
 }
