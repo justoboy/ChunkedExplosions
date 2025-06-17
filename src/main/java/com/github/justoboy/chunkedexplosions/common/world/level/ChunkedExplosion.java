@@ -1,4 +1,4 @@
-package justoboy.chunkedexplosions.world.level;
+package com.github.justoboy.chunkedexplosions.common.world.level;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Explosion;

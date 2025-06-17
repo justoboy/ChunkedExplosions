@@ -1,11 +1,11 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "justoboy.chunkedexplosions.mixin",
+  "package": "com.github.justoboy.chunkedexplosions.mixin",
   "compatibilityLevel": "JAVA_17",
   "refmap": "chunkedexplosions.refmap.json",
   "mixins": [
-    "ExplosionMixin"
+    "world.level.ExplosionMixin"
   ],
   "client": [
   ],
