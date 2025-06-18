@@ -28,9 +28,9 @@ public class ModConfig {
             enable = builder.comment(CommandComments.getComment("enable"))
                     .define("enable", true);
             blocksPerExplosionTick = builder.comment(CommandComments.getComment("blocksPerExplosionTick"))
-                    .define("blocksPerExplosionTick", 128);
+                    .define("blocksPerExplosionTick", 1);
             explosionsPerTick = builder.comment(CommandComments.getComment("explosionsPerTick"))
-                    .define("blocksPerExplosionTick", -1);
+                    .define("explosionsPerTick", 6400);
             builder.pop();
         }
     }

@@ -1,4 +1,5 @@
 package com.github.justoboy.chunkedexplosions.common.world.level;
+import com.github.justoboy.chunkedexplosions.iduck.world.level.IExplosionDuck;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Explosion;
@@ -19,13 +20,14 @@ public class ChunkedExplosion {
         List<BlockPos> toBlow = this.explosion.getToBlow();
         if (!initialized || !toBlow.isEmpty()) {
             initialized = true;
-            this.explosion.explode();
+            // Cast the Explosion instance to IExplosionDuck and call chunked_explode
+            ((IExplosionDuck) explosion).chunked_explode();
             return false;
         }
         return true;
     }
 
     public void finalizeExplosion() {
-        this.explosion.finalizeExplosion(true);
+        ((IExplosionDuck) explosion).chunked_finalize();
     }
 }

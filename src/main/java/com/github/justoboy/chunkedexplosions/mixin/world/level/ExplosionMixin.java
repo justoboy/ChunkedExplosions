@@ -1,6 +1,7 @@
 package com.github.justoboy.chunkedexplosions.mixin.world.level;
 
 import com.github.justoboy.chunkedexplosions.core.ModConfig;
+import com.github.justoboy.chunkedexplosions.iduck.world.level.IExplosionDuck;
 import com.google.common.collect.Sets;
 import com.mojang.datafixers.util.Pair;
 import com.mojang.logging.LogUtils;
@@ -16,7 +17,6 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -46,7 +46,7 @@ import java.util.Set;
 import static net.minecraft.world.level.Explosion.getSeenPercent;
 
 @Mixin(Explosion.class)
-public abstract class ExplosionMixin {
+public abstract class ExplosionMixin implements IExplosionDuck {
 
     @Unique private static final Logger chunkedexplosions$LOGGER = LogUtils.getLogger();
 
@@ -60,47 +60,32 @@ public abstract class ExplosionMixin {
     @Final @Shadow private ObjectArrayList<BlockPos> toBlow = new ObjectArrayList<>();
     @Shadow @Final private DamageSource damageSource;
     @Shadow @Final private Map<Player, Vec3> hitPlayers;
+
     @Shadow public abstract void clearToBlow();
     @Shadow public abstract boolean interactsWithBlocks();
     @Shadow public abstract LivingEntity getIndirectSourceEntity();
     @Final @Shadow private Explosion.BlockInteraction blockInteraction;
     @Final @Shadow private boolean fire;
     @Final @Shadow private RandomSource random;
+    @Shadow private static void addBlockDrops(ObjectArrayList<Pair<ItemStack, BlockPos>> droppedItems, ItemStack itemStackToAdd, BlockPos blockPos) {}
 
     @Unique private ObjectArrayList<BlockPos> chunkedexplosions$toFinalize = new ObjectArrayList<>();
     @Unique private int chunkedexplosions$xIndex = 0;
     @Unique private int chunkedexplosions$yIndex = 0;
     @Unique private int chunkedexplosions$zIndex = 0;
+    @Unique private float chunkedexplosions$randomFactor = 0.0F;
+    @Unique private double chunkedexplosions$currentX = this.x;
+    @Unique private double chunkedexplosions$currentY = this.y;
+    @Unique private double chunkedexplosions$currentZ = this.z;
+
 
     @Unique
     private Explosion chunkedexplosions$self() {
         return (Explosion) (Object) this;
     }
 
-    @Unique
-    private static void chunkedexplosions$addBlockDrops(ObjectArrayList<Pair<ItemStack, BlockPos>> droppedItems, ItemStack itemStackToAdd, BlockPos blockPos) {
-        int numberOfExistingItems = droppedItems.size();
-        // Iterate over the existing items to check for mergability
-        for (int index = 0; index < numberOfExistingItems; ++index) {
-            Pair<ItemStack, BlockPos> existingPair = droppedItems.get(index);
-            ItemStack existingItemStack = existingPair.getFirst();
-            // Check if the item stacks can be merged
-            if (ItemEntity.areMergable(existingItemStack, itemStackToAdd)) {
-                // Merge the item stacks
-                ItemStack mergedItemStack = ItemEntity.merge(existingItemStack, itemStackToAdd, 16);
-                droppedItems.set(index, Pair.of(mergedItemStack, existingPair.getSecond()));
-                // If the new item stack is empty after merging, return early
-                if (itemStackToAdd.isEmpty()) {
-                    return;
-                }
-            }
-        }
-        // If no merge occurred, add the new item stack to the list
-        droppedItems.add(Pair.of(itemStackToAdd, blockPos));
-    }
-
-    @Unique
-    private void chunked_explode() {
+    @Override
+    public void chunked_explode() {
         int blocksPerPass = ModConfig.getBlocksPerExplosionTick(); // Number of blocks to destroy per function pass
         int blocksPassed = 0;
         this.clearToBlow();
@@ -130,17 +115,19 @@ public abstract class ExplosionMixin {
                         normalizedY /= distanceFromCenter;
                         normalizedZ /= distanceFromCenter;
 
-                        // Calculate a random factor for explosion damage
-                        float randomFactor = this.radius * (0.7F + this.level.random.nextFloat() * 00.6F);
 
-                        // Initialize position variables
-                        double currentX = this.x;
-                        double currentY = this.y;
-                        double currentZ = this.z;
+                        // Initialize position and randomFactor if first pass of current zIndex
+                        if (chunkedexplosions$randomFactor <= 0.0F) {
+                            chunkedexplosions$randomFactor = this.radius * (0.7F + this.level.random.nextFloat() * 00.6F);
+                            chunkedexplosions$currentX = this.x;
+                            chunkedexplosions$currentY = this.y;
+                            chunkedexplosions$currentZ = this.z;
+                        }
 
+//                        chunkedexplosions$LOGGER.info("Processing explosion tick ({}, {}, {})", normalizedX, normalizedY, normalizedZ);
                         // Iterate through the explosion radius
-                        for (float stepSize = 0.3F; randomFactor > 0.0F; randomFactor -= 0.225F) {
-                            BlockPos blockPos = BlockPos.containing(currentX, currentY, currentZ);
+                        for (float stepSize = 0.3F; chunkedexplosions$randomFactor > 0.0F && (blocksPassed < blocksPerPass || blocksPerPass == 0); chunkedexplosions$randomFactor -= 0.225F) {
+                            BlockPos blockPos = BlockPos.containing(chunkedexplosions$currentX, chunkedexplosions$currentY, chunkedexplosions$currentZ);
                             BlockState blockState = this.level.getBlockState(blockPos);
                             FluidState fluidState = this.level.getFluidState(blockPos);
 
@@ -151,23 +138,23 @@ public abstract class ExplosionMixin {
 
                             // Calculate block resistance and check if it should be destroyed
                             Optional<Float> blockResistance = this.damageCalculator.getBlockExplosionResistance(chunkedexplosions$self(), this.level, blockPos, blockState, fluidState);
-                            if (blockResistance.isPresent()) {
-                                randomFactor -= (blockResistance.get() + 0.3F) * 0.3F;
-                            }
+                            blockResistance.ifPresent(aFloat -> chunkedexplosions$randomFactor -= (aFloat + 0.3F) * 0.3F);
 
                             // Add the block to the set of blocks to destroy if it should be exploded
-                            if (randomFactor > 0.0F && this.damageCalculator.shouldBlockExplode(chunkedexplosions$self(), this.level, blockPos, blockState, randomFactor)) {
+                            if (chunkedexplosions$randomFactor > 0.0F && this.damageCalculator.shouldBlockExplode(chunkedexplosions$self(), this.level, blockPos, blockState, chunkedexplosions$randomFactor)) {
                                 blocksToDestroy.add(blockPos);
                                 blocksPassed++;
                             }
 
                             // Move to the next position in the grid
-                            currentX += normalizedX * 0.3D;
-                            currentY += normalizedY * 0.3D;
-                            currentZ += normalizedZ * 0.3D;
+                            chunkedexplosions$currentX += normalizedX * 0.3D;
+                            chunkedexplosions$currentY += normalizedY * 0.3D;
+                            chunkedexplosions$currentZ += normalizedZ * 0.3D;
                         }
                     }
-                    chunkedexplosions$zIndex++;
+                    if (chunkedexplosions$randomFactor <= 0.0F) {
+                        chunkedexplosions$zIndex++;
+                    }
                 }
                 if (chunkedexplosions$zIndex >= gridSize) {
                     chunkedexplosions$zIndex = 0;
@@ -257,129 +244,14 @@ public abstract class ExplosionMixin {
         }
     }
 
-    /**
-     * @author justoboy
-     * @reason for handling chunked explosions
-     */
-    @Overwrite
-    public void explode() {
-        if (ModConfig.isEnable()) {
-            this.chunked_explode();
-        } else {
-            this.level.gameEvent(this.source, GameEvent.EXPLODE, new Vec3(this.x, this.y, this.z));
-            Set<BlockPos> set = Sets.newHashSet();
-            int i = 16;
-
-            for(int j = 0; j < 16; ++j) {
-                for(int k = 0; k < 16; ++k) {
-                    for(int l = 0; l < 16; ++l) {
-                        if (j == 0 || j == 15 || k == 0 || k == 15 || l == 0 || l == 15) {
-                            double d0 = (float)j / 15.0F * 2.0F - 1.0F;
-                            double d1 = (float)k / 15.0F * 2.0F - 1.0F;
-                            double d2 = (float)l / 15.0F * 2.0F - 1.0F;
-                            double d3 = Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2);
-                            d0 /= d3;
-                            d1 /= d3;
-                            d2 /= d3;
-                            float f = this.radius * (0.7F + this.level.random.nextFloat() * 0.6F);
-                            double d4 = this.x;
-                            double d6 = this.y;
-                            double d8 = this.z;
-
-                            for(float f1 = 0.3F; f > 0.0F; f -= 0.22500001F) {
-                                BlockPos blockpos = BlockPos.containing(d4, d6, d8);
-                                BlockState blockstate = this.level.getBlockState(blockpos);
-                                FluidState fluidstate = this.level.getFluidState(blockpos);
-                                if (!this.level.isInWorldBounds(blockpos)) {
-                                    break;
-                                }
-
-                                Optional<Float> optional = this.damageCalculator.getBlockExplosionResistance(this.chunkedexplosions$self(), this.level, blockpos, blockstate, fluidstate);
-                                if (optional.isPresent()) {
-                                    f -= (optional.get() + 0.3F) * 0.3F;
-                                }
-
-                                if (f > 0.0F && this.damageCalculator.shouldBlockExplode(this.chunkedexplosions$self(), this.level, blockpos, blockstate, f)) {
-                                    set.add(blockpos);
-                                }
-
-                                d4 += d0 * (double)0.3F;
-                                d6 += d1 * (double)0.3F;
-                                d8 += d2 * (double)0.3F;
-                            }
-                        }
-                    }
-                }
-            }
-
-            this.toBlow.addAll(set);
-            float f2 = this.radius * 2.0F;
-            int k1 = Mth.floor(this.x - (double)f2 - 1.0D);
-            int l1 = Mth.floor(this.x + (double)f2 + 1.0D);
-            int i2 = Mth.floor(this.y - (double)f2 - 1.0D);
-            int i1 = Mth.floor(this.y + (double)f2 + 1.0D);
-            int j2 = Mth.floor(this.z - (double)f2 - 1.0D);
-            int j1 = Mth.floor(this.z + (double)f2 + 1.0D);
-            List<Entity> list = this.level.getEntities(this.source, new AABB(k1, i2, j2, l1, i1, j1));
-            net.minecraftforge.event.ForgeEventFactory.onExplosionDetonate(this.level, this.chunkedexplosions$self(), list, f2);
-            Vec3 vec3 = new Vec3(this.x, this.y, this.z);
-
-            for (Entity entity : list) {
-                if (!entity.ignoreExplosion()) {
-                    double d12 = Math.sqrt(entity.distanceToSqr(vec3)) / (double) f2;
-                    if (d12 <= 1.0D) {
-                        double d5 = entity.getX() - this.x;
-                        double d7 = (entity instanceof PrimedTnt ? entity.getY() : entity.getEyeY()) - this.y;
-                        double d9 = entity.getZ() - this.z;
-                        double d13 = Math.sqrt(d5 * d5 + d7 * d7 + d9 * d9);
-                        if (d13 != 0.0D) {
-                            d5 /= d13;
-                            d7 /= d13;
-                            d9 /= d13;
-                            double d14 = getSeenPercent(vec3, entity);
-                            double d10 = (1.0D - d12) * d14;
-                            entity.hurt(this.damageSource, (float) ((int) ((d10 * d10 + d10) / 2.0D * 7.0D * (double) f2 + 1.0D)));
-                            double d11;
-                            if (entity instanceof LivingEntity livingentity) {
-                                d11 = ProtectionEnchantment.getExplosionKnockbackAfterDampener(livingentity, d10);
-                            } else {
-                                d11 = d10;
-                            }
-
-                            d5 *= d11;
-                            d7 *= d11;
-                            d9 *= d11;
-                            Vec3 vec31 = new Vec3(d5, d7, d9);
-                            entity.setDeltaMovement(entity.getDeltaMovement().add(vec31));
-                            if (entity instanceof Player player) {
-                                if (!player.isSpectator() && (!player.isCreative() || !player.getAbilities().flying)) {
-                                    this.hitPlayers.put(player, vec31);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * @author justoboy
-     * @reason for chunked explosions
-     */
-    @Overwrite
-    public void finalizeExplosion(boolean shouldPlayParticles) {
+    @Override
+    public void chunked_finalize() {
+        // Check if the explosion interacts with blocks
+        boolean interactsWithBlocks = this.interactsWithBlocks();
         // Play sound and add particles on the client side if required
         if (this.level.isClientSide) {
             this.level.playLocalSound(this.x, this.y, this.z, SoundEvents.GENERIC_EXPLODE, SoundSource.BLOCKS, 4.0F,
                     (1.0F + (this.level.random.nextFloat() - this.level.random.nextFloat()) * 0.2F) * 0.7F, false);
-        }
-
-        // Check if the explosion interacts with blocks
-        boolean interactsWithBlocks = this.interactsWithBlocks();
-
-        // Add particles based on the explosion radius and interaction flag
-        if (shouldPlayParticles) {
             if (!(this.radius < 2.0F) && interactsWithBlocks) {
                 this.level.addParticle(ParticleTypes.EXPLOSION_EMITTER, this.x, this.y, this.z, 1.0D, 0.0D, 0.0D);
             } else {
@@ -429,7 +301,7 @@ public abstract class ExplosionMixin {
                             blockState.spawnAfterBreak(serverWorld, blockPos, ItemStack.EMPTY, isIndirectSourcePlayer);
 
                             // Collect drops from the block using the loot context
-                            blockState.getDrops(lootContextBuilder).forEach((itemStack) -> chunkedexplosions$addBlockDrops(droppedItems, itemStack, immutableBlockPos));
+                            blockState.getDrops(lootContextBuilder).forEach((itemStack) -> addBlockDrops(droppedItems, itemStack, immutableBlockPos));
                         }
                     }
 
