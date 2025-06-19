@@ -70,6 +70,9 @@ public abstract class ExplosionMixin implements IExplosionDuck {
     @Shadow private static void addBlockDrops(ObjectArrayList<Pair<ItemStack, BlockPos>> droppedItems, ItemStack itemStackToAdd, BlockPos blockPos) {}
 
     @Unique private ObjectArrayList<BlockPos> chunkedexplosions$toFinalize = new ObjectArrayList<>();
+    // Define the size of the explosion grid starting with 0 (15 = 16x16x16)
+    @Unique private int chunkedexplosions$gridSize = 15;
+    @Unique private float chunkedexplosions$gridNormalizationFactor = 2.0F / chunkedexplosions$gridSize;
     @Unique private int chunkedexplosions$xIndex = 0;
     @Unique private int chunkedexplosions$yIndex = 0;
     @Unique private int chunkedexplosions$zIndex = 0;
@@ -77,6 +80,7 @@ public abstract class ExplosionMixin implements IExplosionDuck {
     @Unique private double chunkedexplosions$currentX = this.x;
     @Unique private double chunkedexplosions$currentY = this.y;
     @Unique private double chunkedexplosions$currentZ = this.z;
+//    @Unique private int chunkedexplosions$passes = 0;
 
 
     @Unique
@@ -87,25 +91,27 @@ public abstract class ExplosionMixin implements IExplosionDuck {
     @Override
     public void chunked_explode() {
         int blocksPerPass = ModConfig.getBlocksPerExplosionTick(); // Number of blocks to destroy per function pass
-        int blocksPassed = 0;
+        final int[] blocksAdded = {0};
         this.clearToBlow();
+
         // Trigger a game event for explosion at the specified position
         this.level.gameEvent(this.source, GameEvent.EXPLODE, new Vec3(this.x, this.y, this.z));
 
         // Set to store block positions that will be destroyed
         Set<BlockPos> blocksToDestroy = Sets.newHashSet();
 
-        // Define the size of the explosion grid (16x16x16)
-        int gridSize = 16;
         // Iterate over each point in the 3D grid
-        while (chunkedexplosions$xIndex < gridSize && (blocksPassed < blocksPerPass || blocksPerPass == 0)) {
-            while (chunkedexplosions$yIndex < gridSize && (blocksPassed < blocksPerPass || blocksPerPass == 0)) {
-                while (chunkedexplosions$zIndex < gridSize && (blocksPassed < blocksPerPass || blocksPerPass == 0)) {
-                    if (chunkedexplosions$xIndex == 0 || chunkedexplosions$xIndex == gridSize - 1 || chunkedexplosions$yIndex == 0 || chunkedexplosions$yIndex == gridSize - 1 || chunkedexplosions$zIndex == 0 || chunkedexplosions$zIndex == gridSize - 1) {
+        while (chunkedexplosions$xIndex <= chunkedexplosions$gridSize && (blocksAdded[0] < blocksPerPass || blocksPerPass == 0)) {
+            while (chunkedexplosions$yIndex <= chunkedexplosions$gridSize && (blocksAdded[0] < blocksPerPass || blocksPerPass == 0)) {
+                while (chunkedexplosions$zIndex <= chunkedexplosions$gridSize && (blocksAdded[0] < blocksPerPass || blocksPerPass == 0)) {
+                    if (chunkedexplosions$xIndex == 0 || chunkedexplosions$xIndex == chunkedexplosions$gridSize ||
+                        chunkedexplosions$yIndex == 0 || chunkedexplosions$yIndex == chunkedexplosions$gridSize ||
+                        chunkedexplosions$zIndex == 0 || chunkedexplosions$zIndex == chunkedexplosions$gridSize) {
+
                         // Calculate normalized coordinates within the grid
-                        double normalizedX = ((float) chunkedexplosions$xIndex / gridSize * 2.0F) - 1.0F;
-                        double normalizedY = ((float) chunkedexplosions$yIndex / gridSize * 2.0F) - 1.0F;
-                        double normalizedZ = ((float) chunkedexplosions$zIndex / gridSize * 2.0F) - 1.0F;
+                        double normalizedX = chunkedexplosions$xIndex * chunkedexplosions$gridNormalizationFactor - 1.0F;
+                        double normalizedY = chunkedexplosions$yIndex * chunkedexplosions$gridNormalizationFactor - 1.0F;
+                        double normalizedZ = chunkedexplosions$zIndex * chunkedexplosions$gridNormalizationFactor - 1.0F;
 
                         // Calculate the distance from the center of the grid
                         double distanceFromCenter = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY + normalizedZ * normalizedZ);
@@ -115,53 +121,64 @@ public abstract class ExplosionMixin implements IExplosionDuck {
                         normalizedY /= distanceFromCenter;
                         normalizedZ /= distanceFromCenter;
 
-
                         // Initialize position and randomFactor if first pass of current zIndex
                         if (chunkedexplosions$randomFactor <= 0.0F) {
-                            chunkedexplosions$randomFactor = this.radius * (0.7F + this.level.random.nextFloat() * 00.6F);
+                            chunkedexplosions$randomFactor = this.radius * (0.7F + this.level.random.nextFloat() * 0.6F);
                             chunkedexplosions$currentX = this.x;
                             chunkedexplosions$currentY = this.y;
                             chunkedexplosions$currentZ = this.z;
+//                            chunkedexplosions$LOGGER.info("first pass z: {}, rf: {}", chunkedexplosions$zIndex, chunkedexplosions$randomFactor);
                         }
 
-//                        chunkedexplosions$LOGGER.info("Processing explosion tick ({}, {}, {})", normalizedX, normalizedY, normalizedZ);
                         // Iterate through the explosion radius
-                        for (float stepSize = 0.3F; chunkedexplosions$randomFactor > 0.0F && (blocksPassed < blocksPerPass || blocksPerPass == 0); chunkedexplosions$randomFactor -= 0.225F) {
+                        for (float stepSize = 0.3F; chunkedexplosions$randomFactor > 0.0F && (blocksAdded[0] < blocksPerPass || blocksPerPass == 0); chunkedexplosions$randomFactor -= 0.22500001F) {
                             BlockPos blockPos = BlockPos.containing(chunkedexplosions$currentX, chunkedexplosions$currentY, chunkedexplosions$currentZ);
-                            BlockState blockState = this.level.getBlockState(blockPos);
-                            FluidState fluidState = this.level.getFluidState(blockPos);
 
                             // Check if the position is within world bounds
                             if (!this.level.isInWorldBounds(blockPos)) {
                                 break;
                             }
 
+                            BlockState blockState = this.level.getBlockState(blockPos);
+                            FluidState fluidState = this.level.getFluidState(blockPos);
+
                             // Calculate block resistance and check if it should be destroyed
                             Optional<Float> blockResistance = this.damageCalculator.getBlockExplosionResistance(chunkedexplosions$self(), this.level, blockPos, blockState, fluidState);
-                            blockResistance.ifPresent(aFloat -> chunkedexplosions$randomFactor -= (aFloat + 0.3F) * 0.3F);
+                            blockResistance.ifPresent(resistance -> {
+                                chunkedexplosions$randomFactor -= (resistance + stepSize) * stepSize; // Use stepSize in the calculation
 
-                            // Add the block to the set of blocks to destroy if it should be exploded
-                            if (chunkedexplosions$randomFactor > 0.0F && this.damageCalculator.shouldBlockExplode(chunkedexplosions$self(), this.level, blockPos, blockState, chunkedexplosions$randomFactor)) {
-                                blocksToDestroy.add(blockPos);
-                                blocksPassed++;
-                            }
+                                // Check if the block hasn't already been marked to be destroyed
+                                if (!blocksToDestroy.contains(blockPos) && !chunkedexplosions$toFinalize.contains(blockPos)) {
+                                    // Check if the block should be destroyed
+                                    if (chunkedexplosions$randomFactor > 0.0F && this.damageCalculator.shouldBlockExplode(chunkedexplosions$self(), this.level, blockPos, blockState, chunkedexplosions$randomFactor)) {
+                                        blocksToDestroy.add(blockPos);
+                                        blocksAdded[0]++;
+//                                        chunkedexplosions$LOGGER.info("currentpos: {}; rf: {};, index: ({}, {}, {}); blocks: {}/{}; passes: {}",
+//                                                blockPos, chunkedexplosions$randomFactor,
+//                                                chunkedexplosions$xIndex, chunkedexplosions$yIndex, chunkedexplosions$zIndex,
+//                                                blocksAdded[0], blocksPerPass, chunkedexplosions$passes);
+                                    }
+                                }
+                            });
 
                             // Move to the next position in the grid
-                            chunkedexplosions$currentX += normalizedX * 0.3D;
-                            chunkedexplosions$currentY += normalizedY * 0.3D;
-                            chunkedexplosions$currentZ += normalizedZ * 0.3D;
+                            chunkedexplosions$currentX += normalizedX * stepSize;
+                            chunkedexplosions$currentY += normalizedY * stepSize;
+                            chunkedexplosions$currentZ += normalizedZ * stepSize;
+//                            chunkedexplosions$passes += 1;
                         }
                     }
                     if (chunkedexplosions$randomFactor <= 0.0F) {
                         chunkedexplosions$zIndex++;
+//                        chunkedexplosions$LOGGER.info("next zpass: {}", chunkedexplosions$zIndex);
                     }
                 }
-                if (chunkedexplosions$zIndex >= gridSize) {
+                if (chunkedexplosions$zIndex > chunkedexplosions$gridSize) {
                     chunkedexplosions$zIndex = 0;
                     chunkedexplosions$yIndex++;
                 }
             }
-            if (chunkedexplosions$yIndex >= gridSize) {
+            if (chunkedexplosions$yIndex > chunkedexplosions$gridSize) {
                 chunkedexplosions$yIndex = 0;
                 chunkedexplosions$xIndex++;
             }
