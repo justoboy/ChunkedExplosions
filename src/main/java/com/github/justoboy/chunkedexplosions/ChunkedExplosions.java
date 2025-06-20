@@ -1,6 +1,7 @@
 package com.github.justoboy.chunkedexplosions;
 
 import com.github.justoboy.chunkedexplosions.core.ModConfig;
+import com.google.common.collect.Sets;
 import com.mojang.logging.LogUtils;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Explosion;
@@ -14,6 +15,7 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import com.github.justoboy.chunkedexplosions.common.world.level.ChunkedExplosion;
 
@@ -61,21 +63,25 @@ public class ChunkedExplosions {
 
     public void tick() {
         if (!explosionQueue.isEmpty()) {
+            Set<ChunkedExplosion> updatedExplosions = Sets.newHashSet();
+            Set<ChunkedExplosion> finalizedExplosions = Sets.newHashSet();
             for (int i = 0; i < ModConfig.getExplosionsPerTick() || (ModConfig.getExplosionsPerTick() == 0 && i < explosionQueue.size()); i++) {
                 ChunkedExplosion queuedExplosion = explosionQueue.poll();
                 if (queuedExplosion != null) {
                     if (queuedExplosion.tick()) {
-                        LOGGER.info("Finalizing explosion, {} left in queue.", explosionQueue.size());
-                        queuedExplosion.finalizeExplosion();
+                        finalizedExplosions.add(queuedExplosion);
                     } else {
-                        // Requeue for next tick
-                        //                    LOGGER.info("Re-Queueing {} blocks.", queuedExplosion.affectedBlocks.size()-queuedExplosion.index);
                         explosionQueue.add(queuedExplosion);
+                        updatedExplosions.add(queuedExplosion);
                     }
                 }
             }
-            for (ChunkedExplosion explosion : explosionQueue) {
+            for (ChunkedExplosion explosion : updatedExplosions) {
                 explosion.update();
+            }
+            LOGGER.info("Finalizing {} explosions, {} left in queue.", finalizedExplosions.size(), explosionQueue.size());
+            for (ChunkedExplosion explosion : finalizedExplosions) {
+                explosion.finalizeExplosion();
             }
         }
     }
