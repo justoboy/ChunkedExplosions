@@ -2,11 +2,11 @@ package com.github.justoboy.chunkedexplosions.mixin.world.level;
 
 import com.github.justoboy.chunkedexplosions.core.ModConfig;
 import com.github.justoboy.chunkedexplosions.iduck.world.level.IExplosionDuck;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.mojang.datafixers.util.Pair;
 import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -69,7 +69,8 @@ public abstract class ExplosionMixin implements IExplosionDuck {
     @Final @Shadow private RandomSource random;
     @Shadow private static void addBlockDrops(ObjectArrayList<Pair<ItemStack, BlockPos>> droppedItems, ItemStack itemStackToAdd, BlockPos blockPos) {}
 
-    @Unique private ObjectArrayList<BlockPos> chunkedexplosions$toFinalize = new ObjectArrayList<>();
+    @Unique private boolean chunkedexplosions$initialized = false;
+    @Unique private int chunkedexplosions$lastUpdatedIndex = 0;
     // Define the size of the explosion grid starting with 0 (15 = 16x16x16)
     @Unique private int chunkedexplosions$gridSize = 15;
     @Unique private float chunkedexplosions$gridNormalizationFactor = 2.0F / chunkedexplosions$gridSize;
@@ -80,6 +81,9 @@ public abstract class ExplosionMixin implements IExplosionDuck {
     @Unique private double chunkedexplosions$currentX = this.x;
     @Unique private double chunkedexplosions$currentY = this.y;
     @Unique private double chunkedexplosions$currentZ = this.z;
+    @Unique private List<Entity> chunkedexplosions$damagedEntities = Lists.newArrayList();
+    @Unique private List<Entity> chunkedexplosions$knockedBackEntities = Lists.newArrayList();
+    @Unique private ObjectArrayList<Pair<ItemStack, BlockPos>> chunkedexplosions$droppedItems = new ObjectArrayList<>();
 //    @Unique private int chunkedexplosions$passes = 0;
 
 
@@ -88,8 +92,213 @@ public abstract class ExplosionMixin implements IExplosionDuck {
         return (Explosion) (Object) this;
     }
 
+    @Unique
+    private void chunkedexplosions$damageEntities(double spread) {
+        // Calculate the effective radius for entity damage
+        float effectiveRadius = this.radius * 2.0F;
+
+        // Define the bounding box for entities within the explosion range
+        int minX = Mth.floor(this.x - (double) effectiveRadius - 1D);
+        int maxX = Mth.floor(this.x + (double) effectiveRadius + 1D);
+        int minY = Mth.floor(this.y - (double) effectiveRadius - 1D);
+        int maxY = Mth.floor(this.y + (double) effectiveRadius + 1D);
+        int minZ = Mth.floor(this.z - (double) effectiveRadius - 1D);
+        int maxZ = Mth.floor(this.z + (double) effectiveRadius + 1D);
+
+        // Get all entities within the bounding box
+        List<Entity> affectedEntities = this.level.getEntities(this.source, new AABB(minX, minY, minZ, maxX, maxY, maxZ));
+
+        // Trigger a Forge event to allow mods to modify the list of affected entities
+        ForgeEventFactory.onExplosionDetonate(this.level, chunkedexplosions$self(), affectedEntities, effectiveRadius);
+
+        // Vector representing the center of the explosion
+        Vec3 explosionCenter = new Vec3(this.x, this.y, this.z);
+
+        // Iterate over each entity within the bounding box
+        for (Entity entity : affectedEntities) {
+            boolean canSingleDamage = ModConfig.getDamageMethod() == ModConfig.Method.ONCE && !chunkedexplosions$damagedEntities.contains(entity);
+            boolean isSpread = ModConfig.getDamageMethod() == ModConfig.Method.SPREAD;
+            if (canSingleDamage || isSpread) {
+                if (!entity.ignoreExplosion()) {
+                    double distanceToEntity = Math.sqrt(entity.distanceToSqr(explosionCenter)) / (double) effectiveRadius;
+                    if (distanceToEntity <= 1D) {
+                        // Calculate relative position of the entity to the explosion center
+                        double deltaX = entity.getX() - this.x;
+                        double deltaY = (entity instanceof PrimedTnt ? entity.getY() : entity.getEyeY()) - this.y;
+                        double deltaZ = entity.getZ() - this.z;
+
+                        // Normalize the distance vector
+                        double distanceFromCenter = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
+                        if (distanceFromCenter != 0.0D) {
+                            // Calculate the percentage of the entity being seen by the explosion
+                            double visibilityFactor = getSeenPercent(explosionCenter, entity);
+
+                            // Calculate the effective damage to apply to the entity
+                            double effectiveDamage = (1D - distanceToEntity) * visibilityFactor;
+                            float finalDamage = (float) ((int) ((effectiveDamage * effectiveDamage + effectiveDamage) / 2.0D * 7.0D * (double) this.radius + 1D));
+                            if (canSingleDamage) {
+                                chunkedexplosions$damagedEntities.add(entity);
+                            } else {
+                                finalDamage *= (float) spread;
+                            }
+                            entity.hurt(this.damageSource, finalDamage);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Unique
+    private void chunkedexplosions$playSound(double spread) {
+        // Play sound
+        float volume = 4.0F;
+        if (ModConfig.getSoundVolumeSplit()) {
+            volume *= (float) spread;
+        }
+        this.level.playLocalSound(this.x, this.y, this.z, SoundEvents.GENERIC_EXPLODE, SoundSource.BLOCKS, volume,
+                (1.0F + (this.level.random.nextFloat() - this.level.random.nextFloat()) * 0.2F) * 0.7F, false);
+    }
+
+    @Unique
+    private void chunkedexplosions$emitParticles() {
+        // Check if the explosion interacts with blocks
+        boolean interactsWithBlocks = this.interactsWithBlocks();
+        // Add particles
+        if (!(this.radius < 2.0F) && interactsWithBlocks) {
+            this.level.addParticle(ParticleTypes.EXPLOSION_EMITTER, this.x, this.y, this.z, 1D, 0.0D, 0.0D);
+        } else {
+            this.level.addParticle(ParticleTypes.EXPLOSION, this.x, this.y, this.z, 1D, 0.0D, 0.0D);
+        }
+    }
+
+    @Unique
+    private void chunkedexplosions$knockBackEntities(double spread) {
+        // Calculate the effective radius for entity knockback
+        float effectiveRadius = this.radius * 2.0F;
+
+        // Define the bounding box for entities within the explosion range
+        int minX = Mth.floor(this.x - (double) effectiveRadius - 1D);
+        int maxX = Mth.floor(this.x + (double) effectiveRadius + 1D);
+        int minY = Mth.floor(this.y - (double) effectiveRadius - 1D);
+        int maxY = Mth.floor(this.y + (double) effectiveRadius + 1D);
+        int minZ = Mth.floor(this.z - (double) effectiveRadius - 1D);
+        int maxZ = Mth.floor(this.z + (double) effectiveRadius + 1D);
+
+        // Get all entities within the bounding box
+        List<Entity> affectedEntities = this.level.getEntities(this.source, new AABB(minX, minY, minZ, maxX, maxY, maxZ));
+
+        // Trigger a Forge event to allow mods to modify the list of affected entities
+        ForgeEventFactory.onExplosionDetonate(this.level, chunkedexplosions$self(), affectedEntities, effectiveRadius);
+
+        // Vector representing the center of the explosion
+        Vec3 explosionCenter = new Vec3(this.x, this.y, this.z);
+
+        // Iterate over each entity within the bounding box
+        for (Entity entity : affectedEntities) {
+            boolean canSingleKnockBack = ModConfig.getKnockbackMethod() == ModConfig.Method.ONCE && !chunkedexplosions$knockedBackEntities.contains(entity);
+            boolean isSpread = ModConfig.getKnockbackMethod() == ModConfig.Method.SPREAD;
+            if (canSingleKnockBack || isSpread) {
+                if (!entity.ignoreExplosion()) {
+                    double distanceToEntity = Math.sqrt(entity.distanceToSqr(explosionCenter)) / (double) effectiveRadius;
+                    if (distanceToEntity <= 1D) {
+                        // Calculate relative position of the entity to the explosion center
+                        double deltaX = entity.getX() - this.x;
+                        double deltaY = (entity instanceof PrimedTnt ? entity.getY() : entity.getEyeY()) - this.y;
+                        double deltaZ = entity.getZ() - this.z;
+
+                        // Normalize the distance vector
+                        double distanceFromCenter = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
+                        if (distanceFromCenter != 0.0D) {
+                            deltaX /= distanceFromCenter;
+                            deltaY /= distanceFromCenter;
+                            deltaZ /= distanceFromCenter;
+
+                            // Calculate the percentage of the entity being seen by the explosion
+                            double visibilityFactor = getSeenPercent(explosionCenter, entity);
+
+                            // Calculate the effective damage to apply to the entity
+                            double effectiveDamage = (1D - distanceToEntity) * visibilityFactor;
+
+                            if (canSingleKnockBack) {
+                                chunkedexplosions$knockedBackEntities.add(entity);
+                            } else {
+                                effectiveDamage *= spread;
+                            }
+
+                            // Calculate knockback for the entity
+                            double knockbackFactor;
+                            if (entity instanceof LivingEntity livingEntity) {
+                                knockbackFactor = ProtectionEnchantment.getExplosionKnockbackAfterDampener(livingEntity, effectiveDamage);
+                            } else {
+                                knockbackFactor = effectiveDamage;
+                            }
+
+                            // Apply knockback to the entity
+                            deltaX *= knockbackFactor;
+                            deltaY *= knockbackFactor;
+                            deltaZ *= knockbackFactor;
+
+                            Vec3 knockbackVector = new Vec3(deltaX, deltaY, deltaZ);
+                            entity.setDeltaMovement(entity.getDeltaMovement().add(knockbackVector));
+
+                            // Handle player-specific logic for knockback
+                            if (entity instanceof Player player) {
+                                if (!player.isSpectator() && (!player.isCreative() || !player.getAbilities().flying)) {
+                                    this.hitPlayers.put(player, knockbackVector);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Unique
+    public void chunked_initialize() {
+        // Initialize entity damage
+        if (ModConfig.getDamageTiming() == ModConfig.Timing.START) {
+            chunkedexplosions$damageEntities(1D);
+        } else if (ModConfig.getDamageTiming() == ModConfig.Timing.START_END) {
+            if (ModConfig.getDamageMethod() == ModConfig.Method.ONCE) {
+                chunkedexplosions$damageEntities(1D);
+            } else {
+                chunkedexplosions$damageEntities(0.5D);
+            }
+        }
+        // Initialize sounds
+        if (ModConfig.getSoundTiming() == ModConfig.Timing.START) {
+            chunkedexplosions$playSound(1D);
+        } else if (ModConfig.getSoundTiming() == ModConfig.Timing.START_END) {
+            if (!ModConfig.getSoundVolumeSplit()) {
+                chunkedexplosions$playSound(1D);
+            } else {
+                chunkedexplosions$playSound(0.5D);
+            }
+        }
+        // Initialize particles
+        if (ModConfig.getParticleTiming() == ModConfig.Timing.START || ModConfig.getParticleTiming() == ModConfig.Timing.START_END) {
+            chunkedexplosions$emitParticles();
+        }
+        // Initialize entity knockback
+        if (ModConfig.getKnockbackTiming() == ModConfig.Timing.START) {
+            chunkedexplosions$knockBackEntities(1D);
+        } else if (ModConfig.getKnockbackTiming() == ModConfig.Timing.START_END) {
+            if (ModConfig.getKnockbackMethod() == ModConfig.Method.ONCE) {
+                chunkedexplosions$knockBackEntities(1D);
+            } else {
+                chunkedexplosions$knockBackEntities(0.5D);
+            }
+        }
+    }
+
     @Override
     public void chunked_explode() {
+        if (!chunkedexplosions$initialized) {
+            chunkedexplosions$initialized = true;
+            chunked_initialize();
+        }
         int blocksPerPass = ModConfig.getBlocksPerExplosionTick(); // Number of blocks to destroy per function pass
         final int[] blocksAdded = {0};
         this.clearToBlow();
@@ -148,12 +357,12 @@ public abstract class ExplosionMixin implements IExplosionDuck {
                                 chunkedexplosions$randomFactor -= (resistance + stepSize) * stepSize; // Use stepSize in the calculation
 
                                 // Check if the block hasn't already been marked to be destroyed
-                                if (!blocksToDestroy.contains(blockPos) && !chunkedexplosions$toFinalize.contains(blockPos)) {
+                                if (!blocksToDestroy.contains(blockPos) && !toBlow.contains(blockPos)) {
                                     // Check if the block should be destroyed
                                     if (chunkedexplosions$randomFactor > 0.0F && this.damageCalculator.shouldBlockExplode(chunkedexplosions$self(), this.level, blockPos, blockState, chunkedexplosions$randomFactor)) {
                                         blocksToDestroy.add(blockPos);
                                         blocksAdded[0]++;
-//                                        chunkedexplosions$LOGGER.info("currentpos: {}; rf: {};, index: ({}, {}, {}); blocks: {}/{}; passes: {}",
+//                                        chunkedexplosions$LOGGER.info("current_pos: {}; rf: {};, index: ({}, {}, {}); blocks: {}/{}; passes: {}",
 //                                                blockPos, chunkedexplosions$randomFactor,
 //                                                chunkedexplosions$xIndex, chunkedexplosions$yIndex, chunkedexplosions$zIndex,
 //                                                blocksAdded[0], blocksPerPass, chunkedexplosions$passes);
@@ -170,7 +379,7 @@ public abstract class ExplosionMixin implements IExplosionDuck {
                     }
                     if (chunkedexplosions$randomFactor <= 0.0F) {
                         chunkedexplosions$zIndex++;
-//                        chunkedexplosions$LOGGER.info("next zpass: {}", chunkedexplosions$zIndex);
+//                        chunkedexplosions$LOGGER.info("next z pass: {}", chunkedexplosions$zIndex);
                     }
                 }
                 if (chunkedexplosions$zIndex > chunkedexplosions$gridSize) {
@@ -185,109 +394,17 @@ public abstract class ExplosionMixin implements IExplosionDuck {
         }
 
         // Add all blocks marked for destruction to the explosion's list of affected blocks
-        this.toBlow.addAll(blocksToDestroy);
-        this.chunkedexplosions$toFinalize.addAll(blocksToDestroy);
-
-        // Calculate the effective radius for entity damage and knockback
-        float effectiveRadius = this.radius * 2.0F;
-
-        // Define the bounding box for entities within the explosion range
-        int minX = Mth.floor(this.x - (double) effectiveRadius - 1.0D);
-        int maxX = Mth.floor(this.x + (double) effectiveRadius + 1.0D);
-        int minY = Mth.floor(this.y - (double) effectiveRadius - 1.0D);
-        int maxY = Mth.floor(this.y + (double) effectiveRadius + 1.0D);
-        int minZ = Mth.floor(this.z - (double) effectiveRadius - 1.0D);
-        int maxZ = Mth.floor(this.z + (double) effectiveRadius + 1.0D);
-
-        // Get all entities within the bounding box
-        List<Entity> affectedEntities = this.level.getEntities(this.source, new AABB(minX, minY, minZ, maxX, maxY, maxZ));
-
-        // Trigger a Forge event to allow mods to modify the list of affected entities
-        ForgeEventFactory.onExplosionDetonate(this.level, chunkedexplosions$self(), affectedEntities, effectiveRadius);
-
-        // Vector representing the center of the explosion
-        Vec3 explosionCenter = new Vec3(this.x, this.y, this.z);
-
-        // Iterate over each entity within the bounding box
-        for (Entity entity : affectedEntities) {
-            if (!entity.ignoreExplosion()) {
-                double distanceToEntity = Math.sqrt(entity.distanceToSqr(explosionCenter)) / (double) effectiveRadius;
-                if (distanceToEntity <= 1.0D) {
-                    // Calculate relative position of the entity to the explosion center
-                    double deltaX = entity.getX() - this.x;
-                    double deltaY = (entity instanceof PrimedTnt ? entity.getY() : entity.getEyeY()) - this.y;
-                    double deltaZ = entity.getZ() - this.z;
-
-                    // Normalize the distance vector
-                    double distanceFromCenter = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
-                    if (distanceFromCenter != 0.0D) {
-                        deltaX /= distanceFromCenter;
-                        deltaY /= distanceFromCenter;
-                        deltaZ /= distanceFromCenter;
-
-                        // Calculate the percentage of the entity being seen by the explosion
-                        double visibilityFactor = getSeenPercent(explosionCenter, entity);
-
-                        // Calculate the effective damage to apply to the entity
-                        double effectiveDamage = (1.0D - distanceToEntity) * visibilityFactor;
-                        float finalDamage = (float) ((int) ((effectiveDamage * effectiveDamage + effectiveDamage) / 2.0D * 7.0D * (double) this.radius + 1.0D));
-                        entity.hurt(this.damageSource, finalDamage);
-
-                        // Calculate knockback for the entity
-                        double knockbackFactor;
-                        if (entity instanceof LivingEntity livingEntity) {
-                            knockbackFactor = ProtectionEnchantment.getExplosionKnockbackAfterDampener(livingEntity, effectiveDamage);
-                        } else {
-                            knockbackFactor = effectiveDamage;
-                        }
-
-                        // Apply knockback to the entity
-                        deltaX *= knockbackFactor;
-                        deltaY *= knockbackFactor;
-                        deltaZ *= knockbackFactor;
-
-                        Vec3 knockbackVector = new Vec3(deltaX, deltaY, deltaZ);
-                        entity.setDeltaMovement(entity.getDeltaMovement().add(knockbackVector));
-
-                        // Handle player-specific logic for knockback
-                        if (entity instanceof Player player) {
-                            if (!player.isSpectator() && (!player.isCreative() || !player.getAbilities().flying)) {
-                                this.hitPlayers.put(player, knockbackVector);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @Override
-    public void chunked_finalize() {
+        toBlow.addAll(blocksToDestroy);
         // Check if the explosion interacts with blocks
         boolean interactsWithBlocks = this.interactsWithBlocks();
-        // Play sound and add particles on the client side if required
-        if (this.level.isClientSide) {
-            this.level.playLocalSound(this.x, this.y, this.z, SoundEvents.GENERIC_EXPLODE, SoundSource.BLOCKS, 4.0F,
-                    (1.0F + (this.level.random.nextFloat() - this.level.random.nextFloat()) * 0.2F) * 0.7F, false);
-            if (!(this.radius < 2.0F) && interactsWithBlocks) {
-                this.level.addParticle(ParticleTypes.EXPLOSION_EMITTER, this.x, this.y, this.z, 1.0D, 0.0D, 0.0D);
-            } else {
-                this.level.addParticle(ParticleTypes.EXPLOSION, this.x, this.y, this.z, 1.0D, 0.0D, 0.0D);
-            }
-        }
 
         // Process block destruction and item drops if the explosion interacts with blocks
         if (interactsWithBlocks) {
-            ObjectArrayList<Pair<ItemStack, BlockPos>> droppedItems = new ObjectArrayList<>();
             boolean isIndirectSourcePlayer = this.getIndirectSourceEntity() instanceof Player;
 
-            // Shuffle the list of blocks to blow up for randomness
-            Util.shuffle(this.chunkedexplosions$toFinalize, this.level.random);
-
             // Iterate over each block position marked for destruction
-            for (BlockPos blockPos : this.chunkedexplosions$toFinalize) {
+            for (BlockPos blockPos : blocksToDestroy) {
                 BlockState blockState = this.level.getBlockState(blockPos);
-                Block block = blockState.getBlock();
 
                 // Check if the block is not air
                 if (!blockState.isAir()) {
@@ -318,7 +435,7 @@ public abstract class ExplosionMixin implements IExplosionDuck {
                             blockState.spawnAfterBreak(serverWorld, blockPos, ItemStack.EMPTY, isIndirectSourcePlayer);
 
                             // Collect drops from the block using the loot context
-                            blockState.getDrops(lootContextBuilder).forEach((itemStack) -> addBlockDrops(droppedItems, itemStack, immutableBlockPos));
+                            blockState.getDrops(lootContextBuilder).forEach((itemStack) -> addBlockDrops(chunkedexplosions$droppedItems, itemStack, immutableBlockPos));
                         }
                     }
 
@@ -328,21 +445,96 @@ public abstract class ExplosionMixin implements IExplosionDuck {
                     this.level.getProfiler().pop();
                 }
             }
-
-            // Spawn collected items in the world
-            for (Pair<ItemStack, BlockPos> itemPair : droppedItems) {
-                Block.popResource(this.level, itemPair.getSecond(), itemPair.getFirst());
-            }
         }
 
         // Set fire to nearby air blocks if the explosion should set fire
         if (this.fire) {
-            for (BlockPos blockPos : this.chunkedexplosions$toFinalize) {
+            for (BlockPos blockPos : blocksToDestroy) {
                 if (this.random.nextInt(3) == 0 && this.level.getBlockState(blockPos).isAir() &&
                         this.level.getBlockState(blockPos.below()).isSolidRender(this.level, blockPos.below())) {
                     this.level.setBlockAndUpdate(blockPos, BaseFireBlock.getState(this.level, blockPos));
                 }
             }
+        }
+    }
+
+    @Override
+    public void chunked_update() {
+        int totalIndex = chunkedexplosions$gridSize * chunkedexplosions$gridSize * chunkedexplosions$gridSize;
+        int currentIndex = (chunkedexplosions$xIndex * chunkedexplosions$gridSize * chunkedexplosions$gridSize) + (chunkedexplosions$yIndex * chunkedexplosions$gridSize) + chunkedexplosions$zIndex;
+        if (currentIndex != chunkedexplosions$lastUpdatedIndex) {
+            double updateSpread = (double) (currentIndex - chunkedexplosions$lastUpdatedIndex) / totalIndex;
+            // Update entity damage
+            if (ModConfig.getDamageTiming() == ModConfig.Timing.SPREAD) {
+                if (ModConfig.getDamageMethod() == ModConfig.Method.ONCE) {
+                    chunkedexplosions$damageEntities(1D);
+                } else {
+                    chunkedexplosions$damageEntities(updateSpread);
+                }
+            }
+            // Update sounds
+            if (ModConfig.getSoundTiming() == ModConfig.Timing.SPREAD) {
+                if (!ModConfig.getSoundVolumeSplit()) {
+                    chunkedexplosions$playSound(1D);
+                } else {
+                    chunkedexplosions$playSound(updateSpread);
+                }
+            }
+            // Update particles
+            if (ModConfig.getParticleTiming() == ModConfig.Timing.SPREAD) {
+                chunkedexplosions$emitParticles();
+            }
+            // Update entity knockback
+            if (ModConfig.getKnockbackTiming() == ModConfig.Timing.SPREAD) {
+                if (ModConfig.getKnockbackMethod() == ModConfig.Method.ONCE) {
+                    chunkedexplosions$knockBackEntities(1D);
+                } else {
+                    chunkedexplosions$knockBackEntities(updateSpread);
+                }
+            }
+            chunkedexplosions$lastUpdatedIndex = currentIndex;
+        }
+    }
+
+    @Override
+    public void chunked_finalize() {
+        // Finalize entity damage
+        if (ModConfig.getDamageTiming() == ModConfig.Timing.END) {
+            chunkedexplosions$damageEntities(1D);
+        } else if (ModConfig.getDamageTiming() == ModConfig.Timing.START_END) {
+            if (ModConfig.getDamageMethod() == ModConfig.Method.ONCE) {
+                chunkedexplosions$damageEntities(1D);
+            } else {
+                chunkedexplosions$damageEntities(0.5D);
+            }
+        }
+        // Finalize sounds
+        if (ModConfig.getSoundTiming() == ModConfig.Timing.END) {
+            chunkedexplosions$playSound(1D);
+        } else if (ModConfig.getSoundTiming() == ModConfig.Timing.START_END) {
+            if (!ModConfig.getSoundVolumeSplit()) {
+                chunkedexplosions$playSound(1D);
+            } else {
+                chunkedexplosions$playSound(0.5D);
+            }
+        }
+        // Finalize particles
+        if (ModConfig.getParticleTiming() == ModConfig.Timing.END || ModConfig.getParticleTiming() == ModConfig.Timing.START_END) {
+            chunkedexplosions$emitParticles();
+        }
+        // Finalize entity knockback
+        if (ModConfig.getKnockbackTiming() == ModConfig.Timing.END) {
+            chunkedexplosions$knockBackEntities(1D);
+        } else if (ModConfig.getKnockbackTiming() == ModConfig.Timing.START_END) {
+            if (ModConfig.getKnockbackMethod() == ModConfig.Method.ONCE) {
+                chunkedexplosions$knockBackEntities(1D);
+            } else {
+                chunkedexplosions$knockBackEntities(0.5D);
+            }
+        }
+        // Spawn collected items in the world
+        for (Pair<ItemStack, BlockPos> itemPair : chunkedexplosions$droppedItems) {
+            Block.popResource(this.level, itemPair.getSecond(), itemPair.getFirst());
         }
     }
 }

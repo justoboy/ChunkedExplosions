@@ -61,7 +61,7 @@ public class ChunkedExplosions {
 
     public void tick() {
         if (!explosionQueue.isEmpty()) {
-            for (int i = 0; i < ModConfig.getExplosionsPerTick() || ModConfig.getExplosionsPerTick() == 0; i++) {
+            for (int i = 0; i < ModConfig.getExplosionsPerTick() || (ModConfig.getExplosionsPerTick() == 0 && i < explosionQueue.size()); i++) {
                 ChunkedExplosion queuedExplosion = explosionQueue.poll();
                 if (queuedExplosion != null) {
                     if (queuedExplosion.tick()) {
@@ -73,6 +73,9 @@ public class ChunkedExplosions {
                         explosionQueue.add(queuedExplosion);
                     }
                 }
+            }
+            for (ChunkedExplosion explosion : explosionQueue) {
+                explosion.update();
             }
         }
     }
