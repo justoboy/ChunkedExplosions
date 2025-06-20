@@ -12,25 +12,28 @@ import net.minecraft.network.chat.Component;
 public class BlocksPerExplosionTickCommand {
 
     static {
-        CommandComments.addComment("blocksPerExplosionTick", "The amount of blocks to update when an explosion is updated. (0 for unlimited)");
+        CommandComments.addComment("blocksPerExplosionTick", "Maximum number of blocks updated per server tick by each explosion (0 for no limit).");
     }
 
-    public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext buildContext) {
+    public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext ignoredBuildContext) {
         return Commands.literal("blocksPerExplosionTick")
-                .then(Commands.argument("value", IntegerArgumentType.integer(0, 10000))
-                        .executes(context -> execute(context, IntegerArgumentType.getInteger(context, "value"))))
-        .executes(BlocksPerExplosionTickCommand::sendUsageMessage);
+                .then(Commands.argument("value", IntegerArgumentType.integer())
+                        .executes(context -> setValue(context, IntegerArgumentType.getInteger(context, "value"))))
+        .executes(BlocksPerExplosionTickCommand::sendValueMessage);
     }
 
-    private static int execute(CommandContext<CommandSourceStack> context, int value) {
-        // Set the enable state in your mod's configuration or a global variable
-        ModConfig.setBlocksPerExplosionTick(value);
-
-        context.getSource().sendSuccess(() -> Component.literal("Blocks per explosion tick: " + value), true);
-        return 1;
+    private static int setValue(CommandContext<CommandSourceStack> context, int value) {
+        if (value >= 0) {
+            ModConfig.setBlocksPerExplosionTick(value);
+            sendValueMessage(context);
+            return 1;
+        } else {
+            context.getSource().sendFailure(Component.literal("Blocks per explosion tick must be a non-negative integer."));
+            return 0;
+        }
     }
 
-    private static int sendUsageMessage(CommandContext<CommandSourceStack> context) {
+    private static int sendValueMessage(CommandContext<CommandSourceStack> context) {
         context.getSource().sendSuccess(() -> Component.literal("Blocks per explosion tick: " + ModConfig.getBlocksPerExplosionTick()), true);
         return 1;
     }

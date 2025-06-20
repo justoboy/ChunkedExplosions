@@ -10,10 +10,17 @@ public class ChunkedExplosionsCommand {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext buildContext) {
         dispatcher.register(
                 Commands.literal("chunkedexplosions")
-                        .then(HelpCommand.register(buildContext))
                         .then(EnableCommand.register(buildContext))
-                        .then(BlocksPerExplosionTickCommand.register(buildContext))
+                        .then(HelpCommand.register(buildContext))
                         .then(ExplosionsPerTickCommand.register(buildContext))
+                        .then(BlocksPerExplosionTickCommand.register(buildContext))
+                        .then(DamageTimingCommand.register(buildContext))
+                        .then(DamageMethodCommand.register(buildContext))
+                        .then(SoundTimingCommand.register(buildContext))
+                        .then(SoundVolumeSplitCommand.register(buildContext))
+                        .then(ParticleTimingCommand.register(buildContext))
+                        .then(KnockbackTimingCommand.register(buildContext))
+                        .then(KnockbackMethodCommand.register(buildContext))
         );
     }
 }

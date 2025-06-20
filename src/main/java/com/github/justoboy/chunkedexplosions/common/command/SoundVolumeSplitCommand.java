@@ -9,28 +9,28 @@ import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import com.github.justoboy.chunkedexplosions.core.ModConfig;
 
-public class EnableCommand {
+public class SoundVolumeSplitCommand {
 
     static {
-        CommandComments.addComment("enable", "Enable or disable chunked explosions.");
+        CommandComments.addComment("soundVolumeSplit", "Whether the explosion sound volume is split when soundTiming is set to START_END or SPREAD.");
     }
 
     public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext ignoredBuildContext) {
-        return Commands.literal("enable")
+        return Commands.literal("soundVolumeSplit")
                 .then(Commands.argument("value", BoolArgumentType.bool())
                         .executes(context -> setValue(context, BoolArgumentType.getBool(context, "value"))))
-        .executes(EnableCommand::sendValueMessage);
+                .executes(SoundVolumeSplitCommand::sendValueMessage);
     }
 
     private static int setValue(CommandContext<CommandSourceStack> context, boolean value) {
-        ModConfig.setEnable(value);
+        ModConfig.setSoundVolumeSplit(value);
         sendValueMessage(context);
         return 1;
     }
 
     private static int sendValueMessage(CommandContext<CommandSourceStack> context) {
-        String message = ModConfig.getEnable() ? "enabled" : "disabled";
-        context.getSource().sendSuccess(() -> Component.literal("Chunked Explosions: " + message), true);
+        String message = ModConfig.getSoundVolumeSplit() ? "enabled" : "disabled";
+        context.getSource().sendSuccess(() -> Component.literal("Sound volume split: " + message), true);
         return 1;
     }
 }

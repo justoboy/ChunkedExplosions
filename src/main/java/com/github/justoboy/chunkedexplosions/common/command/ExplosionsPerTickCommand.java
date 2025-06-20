@@ -12,25 +12,28 @@ import net.minecraft.network.chat.Component;
 public class ExplosionsPerTickCommand {
 
     static {
-        CommandComments.addComment("explosionsPerTick", "The amount of explosions to update per game tick. (0 for unlimited)");
+        CommandComments.addComment("explosionsPerTick", "Maximum number of explosions updated per server tick (0 for no limit).");
     }
 
-    public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext buildContext) {
+    public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext ignoredBuildContext) {
         return Commands.literal("explosionsPerTick")
-                .then(Commands.argument("value", IntegerArgumentType.integer(0, 10000))
-                        .executes(context -> execute(context, IntegerArgumentType.getInteger(context, "value"))))
-        .executes(ExplosionsPerTickCommand::sendUsageMessage);
+                .then(Commands.argument("value", IntegerArgumentType.integer())
+                        .executes(context -> setValue(context, IntegerArgumentType.getInteger(context, "value"))))
+        .executes(ExplosionsPerTickCommand::sendValueMessage);
     }
 
-    private static int execute(CommandContext<CommandSourceStack> context, int value) {
-        // Set the enable state in your mod's configuration or a global variable
-        ModConfig.setExplosionsPerTick(value);
-
-        context.getSource().sendSuccess(() -> Component.literal("Explosions per tick: " + value), true);
-        return 1;
+    private static int setValue(CommandContext<CommandSourceStack> context, int value) {
+        if (value >= 0) {
+            ModConfig.setExplosionsPerTick(value);
+            sendValueMessage(context);
+            return 1;
+        } else {
+            context.getSource().sendFailure(Component.literal("Explosions per tick must be a non-negative integer."));
+            return 0;
+        }
     }
 
-    private static int sendUsageMessage(CommandContext<CommandSourceStack> context) {
+    private static int sendValueMessage(CommandContext<CommandSourceStack> context) {
         context.getSource().sendSuccess(() -> Component.literal("Explosions per tick: " + ModConfig.getExplosionsPerTick()), true);
         return 1;
     }

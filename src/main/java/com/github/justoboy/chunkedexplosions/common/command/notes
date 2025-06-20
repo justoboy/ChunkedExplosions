@@ -1,5 +1,0 @@
-damageTime [split,start,end]
-damageMaxSplit 100
-chunkSize 16
-chunkType [block,blockExplosion,explosion]
-enabled [true,false]

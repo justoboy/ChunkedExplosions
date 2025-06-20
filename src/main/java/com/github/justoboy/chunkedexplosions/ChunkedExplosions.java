@@ -1,5 +1,6 @@
-package com.github.justoboy.chunkedexplosions.core;
+package com.github.justoboy.chunkedexplosions;
 
+import com.github.justoboy.chunkedexplosions.core.ModConfig;
 import com.mojang.logging.LogUtils;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Explosion;
@@ -43,7 +44,7 @@ public class ChunkedExplosions {
     }
 
     private void onExplosionStart(ExplosionEvent.Start event) {
-        if (ModConfig.isEnable()) {
+        if (ModConfig.getEnable()) {
             Explosion explosion = event.getExplosion();
             Level level = event.getLevel();
 

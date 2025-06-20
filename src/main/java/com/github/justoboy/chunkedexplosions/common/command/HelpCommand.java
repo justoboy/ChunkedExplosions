@@ -12,12 +12,12 @@ public class HelpCommand {
     static {
         CommandComments.addComment("help", "Displays available commands.");
     }
-    public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext buildContext) {
+    public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext ignoredBuildContext) {
         return Commands.literal("help")
-                .executes(HelpCommand::execute);
+                .executes(HelpCommand::sendHelpMessage);
     }
 
-    private static int execute(CommandContext<CommandSourceStack> context) {
+    private static int sendHelpMessage(CommandContext<CommandSourceStack> context) {
         context.getSource().sendSuccess(() -> Component.literal("Available commands:"), false);
 
         CommandComments.COMMAND_COMMENTS.forEach((command, comment) ->
