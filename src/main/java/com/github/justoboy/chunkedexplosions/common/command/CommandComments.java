@@ -1,11 +1,11 @@
 package com.github.justoboy.chunkedexplosions.common.command;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class CommandComments {
 
-    static final Map<String, String> COMMAND_COMMENTS = new HashMap<>();
+    static final Map<String, String> COMMAND_COMMENTS = new LinkedHashMap<>();
 
     public static void addComment(String command, String comment) {
         COMMAND_COMMENTS.put(command, comment);

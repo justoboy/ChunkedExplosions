@@ -38,7 +38,7 @@ public class ModConfig {
             blocksPerExplosionTick = builder.comment(CommandComments.getComment("blocksPerExplosionTick"))
                     .defineInRange("blocksPerExplosionTick", 1, 0 ,Integer.MAX_VALUE);
             explosionsPerTick = builder.comment(CommandComments.getComment("explosionsPerTick"))
-                    .defineInRange("explosionsPerTick", 6400, 0, Integer.MAX_VALUE);
+                    .defineInRange("explosionsPerTick", 4096, 0, Integer.MAX_VALUE);
             damageTiming = builder.comment(CommandComments.getComment("damageTiming"))
                     .defineEnum("damageTiming", Timing.SPREAD);
             damageMethod = builder.comment(CommandComments.getComment("damageMethod"))

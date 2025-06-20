@@ -18,6 +18,7 @@ public class SoundTimingCommand {
     public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext ignoredBuildContext) {
         return Commands.literal("soundTiming")
                 .then(Commands.argument("value", StringArgumentType.word())
+                        .suggests(SuggestionProviders::timingSuggestions)
                         .executes(context -> setValue(context, StringArgumentType.getString(context, "value"))))
                 .executes(SoundTimingCommand::sendValueMessage);
     }
@@ -29,7 +30,7 @@ public class SoundTimingCommand {
             sendValueMessage(context);
             return 1;
         } catch (IllegalArgumentException e) {
-            context.getSource().sendFailure(Component.literal("/chunkedexplosions soundTiming <START|END|START_END|SPREAD>"));
+            context.getSource().sendFailure(Component.literal("/chunkedexplosions soundTiming <START | END | START_END | SPREAD>"));
             return 0;
         }
     }

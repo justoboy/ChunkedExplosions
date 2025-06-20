@@ -18,6 +18,7 @@ public class DamageMethodCommand {
     public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext ignoredBuildContext) {
         return Commands.literal("damageMethod")
                 .then(Commands.argument("value", StringArgumentType.word())
+                        .suggests(SuggestionProviders::methodSuggestions)
                         .executes(context -> setValue(context, StringArgumentType.getString(context, "value"))))
                 .executes(DamageMethodCommand::sendValueMessage);
     }
@@ -29,7 +30,7 @@ public class DamageMethodCommand {
             sendValueMessage(context);
             return 1;
         } catch (IllegalArgumentException e) {
-            context.getSource().sendFailure(Component.literal("/chunkedexplosions damageMethod <SPREAD|ONCE>"));
+            context.getSource().sendFailure(Component.literal("/chunkedexplosions damageMethod <SPREAD | ONCE>"));
             return 0;
         }
     }

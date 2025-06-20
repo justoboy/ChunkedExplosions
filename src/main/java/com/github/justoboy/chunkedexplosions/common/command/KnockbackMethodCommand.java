@@ -18,6 +18,7 @@ public class KnockbackMethodCommand {
     public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext ignoredBuildContext) {
         return Commands.literal("knockbackMethod")
                 .then(Commands.argument("value", StringArgumentType.word())
+                        .suggests(SuggestionProviders::methodSuggestions)
                         .executes(context -> setValue(context, StringArgumentType.getString(context, "value"))))
                 .executes(KnockbackMethodCommand::sendValueMessage);
     }
@@ -29,7 +30,7 @@ public class KnockbackMethodCommand {
             sendValueMessage(context);
             return 1;
         } catch (IllegalArgumentException e) {
-            context.getSource().sendFailure(Component.literal("/chunkedexplosions knockbackMethod <SPREAD|ONCE>"));
+            context.getSource().sendFailure(Component.literal("/chunkedexplosions knockbackMethod <SPREAD | ONCE>"));
             return 0;
         }
     }

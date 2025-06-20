@@ -17,7 +17,8 @@ public class ExplosionsPerTickCommand {
 
     public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext ignoredBuildContext) {
         return Commands.literal("explosionsPerTick")
-                .then(Commands.argument("value", IntegerArgumentType.integer())
+                .then(Commands.argument("value", IntegerArgumentType.integer(0))
+                        .suggests(SuggestionProviders::integerSuggestions)
                         .executes(context -> setValue(context, IntegerArgumentType.getInteger(context, "value"))))
         .executes(ExplosionsPerTickCommand::sendValueMessage);
     }

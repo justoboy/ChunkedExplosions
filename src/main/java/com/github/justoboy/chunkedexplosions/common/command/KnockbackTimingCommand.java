@@ -18,6 +18,7 @@ public class KnockbackTimingCommand {
     public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext ignoredBuildContext) {
         return Commands.literal("knockbackTiming")
                 .then(Commands.argument("value", StringArgumentType.word())
+                        .suggests(SuggestionProviders::timingSuggestions)
                         .executes(context -> setValue(context, StringArgumentType.getString(context, "value"))))
                 .executes(KnockbackTimingCommand::sendValueMessage);
     }
@@ -29,7 +30,7 @@ public class KnockbackTimingCommand {
             sendValueMessage(context);
             return 1;
         } catch (IllegalArgumentException e) {
-            context.getSource().sendFailure(Component.literal("/chunkedexplosions knockbackTiming <START|END|START_END|SPREAD>"));
+            context.getSource().sendFailure(Component.literal("/chunkedexplosions knockbackTiming <START | END | START_END | SPREAD>"));
             return 0;
         }
     }
