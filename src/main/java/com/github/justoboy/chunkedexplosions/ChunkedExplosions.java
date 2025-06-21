@@ -76,12 +76,16 @@ public class ChunkedExplosions {
                     }
                 }
             }
-            for (ChunkedExplosion explosion : updatedExplosions) {
-                explosion.update();
+            if (!updatedExplosions.isEmpty()) {
+                for (ChunkedExplosion explosion : updatedExplosions) {
+                    explosion.update();
+                }
             }
-            LOGGER.info("Finalizing {} explosions, {} left in queue.", finalizedExplosions.size(), explosionQueue.size());
-            for (ChunkedExplosion explosion : finalizedExplosions) {
-                explosion.finalizeExplosion();
+            if (!finalizedExplosions.isEmpty()) {
+                LOGGER.info("Finalizing {} explosions, {} left in queue.", finalizedExplosions.size(), explosionQueue.size());
+                for (ChunkedExplosion explosion : finalizedExplosions) {
+                    explosion.finalizeExplosion();
+                }
             }
         }
     }

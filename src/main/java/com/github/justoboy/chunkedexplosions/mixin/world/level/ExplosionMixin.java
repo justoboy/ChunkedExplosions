@@ -72,8 +72,8 @@ public abstract class ExplosionMixin implements IExplosionDuck {
     @Unique private boolean chunkedexplosions$initialized = false;
     @Unique private int chunkedexplosions$lastUpdatedIndex = 0;
     // Define the size of the explosion grid starting with 0 (15 = 16x16x16)
-    @Unique private int chunkedexplosions$gridSize = 15;
-    @Unique private float chunkedexplosions$gridNormalizationFactor = 2.0F / chunkedexplosions$gridSize;
+    @Unique private final int chunkedexplosions$gridSize = 15;
+    @Unique private final float chunkedexplosions$gridNormalizationFactor = 2.0F / chunkedexplosions$gridSize;
     @Unique private int chunkedexplosions$xIndex = 0;
     @Unique private int chunkedexplosions$yIndex = 0;
     @Unique private int chunkedexplosions$zIndex = 0;
@@ -81,9 +81,9 @@ public abstract class ExplosionMixin implements IExplosionDuck {
     @Unique private double chunkedexplosions$currentX = this.x;
     @Unique private double chunkedexplosions$currentY = this.y;
     @Unique private double chunkedexplosions$currentZ = this.z;
-    @Unique private List<Entity> chunkedexplosions$damagedEntities = Lists.newArrayList();
-    @Unique private List<Entity> chunkedexplosions$knockedBackEntities = Lists.newArrayList();
-    @Unique private ObjectArrayList<Pair<ItemStack, BlockPos>> chunkedexplosions$droppedItems = new ObjectArrayList<>();
+    @Unique private final List<Entity> chunkedexplosions$damagedEntities = Lists.newArrayList();
+    @Unique private final List<Entity> chunkedexplosions$knockedBackEntities = Lists.newArrayList();
+    @Unique private final ObjectArrayList<Pair<ItemStack, BlockPos>> chunkedexplosions$droppedItems = new ObjectArrayList<>();
 //    @Unique private int chunkedexplosions$passes = 0;
 
 
@@ -355,20 +355,20 @@ public abstract class ExplosionMixin implements IExplosionDuck {
                             Optional<Float> blockResistance = this.damageCalculator.getBlockExplosionResistance(chunkedexplosions$self(), this.level, blockPos, blockState, fluidState);
                             blockResistance.ifPresent(resistance -> {
                                 chunkedexplosions$randomFactor -= (resistance + stepSize) * stepSize; // Use stepSize in the calculation
+                            });
 
-                                // Check if the block hasn't already been marked to be destroyed
-                                if (!blocksToDestroy.contains(blockPos) && !toBlow.contains(blockPos)) {
-                                    // Check if the block should be destroyed
-                                    if (chunkedexplosions$randomFactor > 0.0F && this.damageCalculator.shouldBlockExplode(chunkedexplosions$self(), this.level, blockPos, blockState, chunkedexplosions$randomFactor)) {
-                                        blocksToDestroy.add(blockPos);
-                                        blocksAdded[0]++;
+                            // Check if the block hasn't already been marked to be destroyed
+                            if (!blocksToDestroy.contains(blockPos) && !toBlow.contains(blockPos)) {
+                                // Check if the block should be destroyed
+                                if (chunkedexplosions$randomFactor > 0.0F && this.damageCalculator.shouldBlockExplode(chunkedexplosions$self(), this.level, blockPos, blockState, chunkedexplosions$randomFactor)) {
+                                    blocksToDestroy.add(blockPos);
+                                    blocksAdded[0]++;
 //                                        chunkedexplosions$LOGGER.info("current_pos: {}; rf: {};, index: ({}, {}, {}); blocks: {}/{}; passes: {}",
 //                                                blockPos, chunkedexplosions$randomFactor,
 //                                                chunkedexplosions$xIndex, chunkedexplosions$yIndex, chunkedexplosions$zIndex,
 //                                                blocksAdded[0], blocksPerPass, chunkedexplosions$passes);
-                                    }
                                 }
-                            });
+                            }
 
                             // Move to the next position in the grid
                             chunkedexplosions$currentX += normalizedX * stepSize;
