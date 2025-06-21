@@ -38,10 +38,7 @@ import net.minecraftforge.event.ForgeEventFactory;
 import org.slf4j.Logger;
 import org.spongepowered.asm.mixin.*;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 import static net.minecraft.world.level.Explosion.getSeenPercent;
 
@@ -61,6 +58,10 @@ public abstract class ExplosionMixin implements IExplosionDuck {
     @Shadow @Final private DamageSource damageSource;
     @Shadow @Final private Map<Player, Vec3> hitPlayers;
 
+    protected ExplosionMixin() {
+        chunkedexplosions$gridNormalizationFactor = 2.0F / chunkedexplosions$gridSize;
+    }
+
     @Shadow public abstract void clearToBlow();
     @Shadow public abstract boolean interactsWithBlocks();
     @Shadow public abstract LivingEntity getIndirectSourceEntity();
@@ -73,7 +74,7 @@ public abstract class ExplosionMixin implements IExplosionDuck {
     @Unique private int chunkedexplosions$lastUpdatedIndex = 0;
     // Define the size of the explosion grid starting with 0 (15 = 16x16x16)
     @Unique private final int chunkedexplosions$gridSize = 15;
-    @Unique private final float chunkedexplosions$gridNormalizationFactor = 2.0F / chunkedexplosions$gridSize;
+    @Unique private final float chunkedexplosions$gridNormalizationFactor;
     @Unique private int chunkedexplosions$xIndex = 0;
     @Unique private int chunkedexplosions$yIndex = 0;
     @Unique private int chunkedexplosions$zIndex = 0;
@@ -84,6 +85,7 @@ public abstract class ExplosionMixin implements IExplosionDuck {
     @Unique private final List<Entity> chunkedexplosions$damagedEntities = Lists.newArrayList();
     @Unique private final List<Entity> chunkedexplosions$knockedBackEntities = Lists.newArrayList();
     @Unique private final ObjectArrayList<Pair<ItemStack, BlockPos>> chunkedexplosions$droppedItems = new ObjectArrayList<>();
+    @Unique private final Map<BlockPos, Map<String, Object>> chunkedexplosions$processedBlocks = new HashMap<>();
 //    @Unique private int chunkedexplosions$passes = 0;
 
 
@@ -347,12 +349,31 @@ public abstract class ExplosionMixin implements IExplosionDuck {
                             if (!this.level.isInWorldBounds(blockPos)) {
                                 break;
                             }
+                            BlockState blockState;
+                            Optional<Float> blockResistance;
+                            Optional<Float> testBlockResistance;
+                            if (chunkedexplosions$processedBlocks.containsKey(blockPos)) {
+                                // Load block state and resistance
+                                blockState = (BlockState) chunkedexplosions$processedBlocks.get(blockPos).get("blockState");
+                                //noinspection unchecked
+                                blockResistance = (Optional<Float>) chunkedexplosions$processedBlocks.get(blockPos).get("blockResistance");
+                                testBlockResistance = this.damageCalculator.getBlockExplosionResistance(chunkedexplosions$self(), this.level, blockPos, this.level.getBlockState(blockPos), this.level.getFluidState(blockPos));
+                                if (!blockResistance.equals(testBlockResistance)) {
+                                    chunkedexplosions$LOGGER.info("Used: {}, calculated: {}", blockResistance, testBlockResistance);
+                                }
+                            } else {
+                                // Get block states
+                                blockState = this.level.getBlockState(blockPos);
+                                FluidState fluidState = this.level.getFluidState(blockPos);
+                                // Calculate block resistance
+                                blockResistance = this.damageCalculator.getBlockExplosionResistance(chunkedexplosions$self(), this.level, blockPos, blockState, fluidState);
+                                // Store block state and resistance
+                                Map<String, Object> blockMap = new HashMap<>();
+                                blockMap.put("blockState", blockState);
+                                blockMap.put("blockResistance", blockResistance);
+                                chunkedexplosions$processedBlocks.put(blockPos, blockMap);
+                            }
 
-                            BlockState blockState = this.level.getBlockState(blockPos);
-                            FluidState fluidState = this.level.getFluidState(blockPos);
-
-                            // Calculate block resistance and check if it should be destroyed
-                            Optional<Float> blockResistance = this.damageCalculator.getBlockExplosionResistance(chunkedexplosions$self(), this.level, blockPos, blockState, fluidState);
                             blockResistance.ifPresent(resistance -> {
                                 chunkedexplosions$randomFactor -= (resistance + stepSize) * stepSize; // Use stepSize in the calculation
                             });
