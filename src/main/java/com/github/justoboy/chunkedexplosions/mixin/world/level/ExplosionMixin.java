@@ -21,8 +21,8 @@ import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.ProtectionEnchantment;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Explosion;
-import net.minecraft.world.level.ExplosionDamageCalculator;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.Block;
@@ -53,7 +53,6 @@ public abstract class ExplosionMixin implements IExplosionDuck {
     @Final @Shadow private double y;
     @Final @Shadow private double z;
     @Final @Shadow private float radius;
-    @Final @Shadow private ExplosionDamageCalculator damageCalculator;
     @Final @Shadow private ObjectArrayList<BlockPos> toBlow = new ObjectArrayList<>();
     @Shadow @Final private DamageSource damageSource;
     @Shadow @Final private Map<Player, Vec3> hitPlayers;
@@ -92,6 +91,57 @@ public abstract class ExplosionMixin implements IExplosionDuck {
     @Unique
     private Explosion chunkedexplosions$self() {
         return (Explosion) (Object) this;
+    }
+
+    // IExplosionDuck accessor implementations
+    @Override
+    public Level chunked_getLevel() {
+        return this.level;
+    }
+
+    @Override
+    public Entity chunked_getSource() {
+        return this.source;
+    }
+
+    @Override
+    public double chunked_getX() {
+        return this.x;
+    }
+
+    @Override
+    public double chunked_getY() {
+        return this.y;
+    }
+
+    @Override
+    public double chunked_getZ() {
+        return this.z;
+    }
+
+    @Override
+    public float chunked_getRadius() {
+        return this.radius;
+    }
+
+    @Override
+    public boolean chunked_isFire() {
+        return this.fire;
+    }
+
+    @Override
+    public Explosion.BlockInteraction chunked_getBlockInteraction() {
+        return this.blockInteraction;
+    }
+
+    @Override
+    public DamageSource chunked_getDamageSource() {
+        return this.damageSource;
+    }
+
+    @Override
+    public Vec3 chunked_getPosition() {
+        return new Vec3(this.x, this.y, this.z);
     }
 
     @Unique
@@ -294,6 +344,10 @@ public abstract class ExplosionMixin implements IExplosionDuck {
             }
         }
     }
+    @Unique
+    public Optional<Float> chunkedexplosions$getBlockExplosionResistance(BlockGetter level, BlockPos blockPos, BlockState blockState, FluidState fluidState) {
+        return blockState.isAir() && fluidState.isEmpty() ? Optional.empty() : Optional.of(Math.max(blockState.getExplosionResistance(level, blockPos, chunkedexplosions$self()), fluidState.getExplosionResistance(level, blockPos, chunkedexplosions$self())));
+    }
 
     @Override
     public void chunked_explode() {
@@ -357,16 +411,16 @@ public abstract class ExplosionMixin implements IExplosionDuck {
                                 blockState = (BlockState) chunkedexplosions$processedBlocks.get(blockPos).get("blockState");
                                 //noinspection unchecked
                                 blockResistance = (Optional<Float>) chunkedexplosions$processedBlocks.get(blockPos).get("blockResistance");
-                                testBlockResistance = this.damageCalculator.getBlockExplosionResistance(chunkedexplosions$self(), this.level, blockPos, this.level.getBlockState(blockPos), this.level.getFluidState(blockPos));
+                                testBlockResistance = chunkedexplosions$getBlockExplosionResistance(this.level, blockPos, this.level.getBlockState(blockPos), this.level.getFluidState(blockPos));
                                 if (!blockResistance.equals(testBlockResistance)) {
-                                    chunkedexplosions$LOGGER.info("Used: {}, calculated: {}", blockResistance, testBlockResistance);
+                                    chunkedexplosions$LOGGER.info("Used: {}, calculated: {}, index ({}, {}, {})", blockResistance, testBlockResistance, chunkedexplosions$xIndex, chunkedexplosions$yIndex, chunkedexplosions$zIndex);
                                 }
                             } else {
                                 // Get block states
                                 blockState = this.level.getBlockState(blockPos);
                                 FluidState fluidState = this.level.getFluidState(blockPos);
                                 // Calculate block resistance
-                                blockResistance = this.damageCalculator.getBlockExplosionResistance(chunkedexplosions$self(), this.level, blockPos, blockState, fluidState);
+                                blockResistance = chunkedexplosions$getBlockExplosionResistance(this.level, blockPos, blockState, fluidState);
                                 // Store block state and resistance
                                 Map<String, Object> blockMap = new HashMap<>();
                                 blockMap.put("blockState", blockState);
@@ -381,7 +435,7 @@ public abstract class ExplosionMixin implements IExplosionDuck {
                             // Check if the block hasn't already been marked to be destroyed
                             if (!blocksToDestroy.contains(blockPos) && !toBlow.contains(blockPos)) {
                                 // Check if the block should be destroyed
-                                if (chunkedexplosions$randomFactor > 0.0F && this.damageCalculator.shouldBlockExplode(chunkedexplosions$self(), this.level, blockPos, blockState, chunkedexplosions$randomFactor)) {
+                                if (chunkedexplosions$randomFactor >= 0.0F) {
                                     blocksToDestroy.add(blockPos);
                                     blocksAdded[0]++;
 //                                        chunkedexplosions$LOGGER.info("current_pos: {}; rf: {};, index: ({}, {}, {}); blocks: {}/{}; passes: {}",

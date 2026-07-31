@@ -23,6 +23,8 @@ public class ModConfig {
         public final ForgeConfigSpec.BooleanValue enable;
         public final ForgeConfigSpec.ConfigValue<Integer> blocksPerExplosionTick;
         public final ForgeConfigSpec.ConfigValue<Integer> explosionsPerTick;
+        public final ForgeConfigSpec.ConfigValue<Integer> maxBlocksPerTick;
+        public final ForgeConfigSpec.BooleanValue cascadeSuppression;
         public final ForgeConfigSpec.EnumValue<Timing> damageTiming;
         public final ForgeConfigSpec.EnumValue<Method> damageMethod;
         public final ForgeConfigSpec.EnumValue<Timing> soundTiming;
@@ -36,9 +38,13 @@ public class ModConfig {
             enable = builder.comment(CommandComments.getComment("enable"))
                     .define("enable", true);
             blocksPerExplosionTick = builder.comment(CommandComments.getComment("blocksPerExplosionTick"))
-                    .defineInRange("blocksPerExplosionTick", 1, 0 ,Integer.MAX_VALUE);
+                    .defineInRange("blocksPerExplosionTick", 16, 0 ,Integer.MAX_VALUE);
             explosionsPerTick = builder.comment(CommandComments.getComment("explosionsPerTick"))
-                    .defineInRange("explosionsPerTick", 4096, 0, Integer.MAX_VALUE);
+                    .defineInRange("explosionsPerTick", 1024, 0, Integer.MAX_VALUE);
+            maxBlocksPerTick = builder.comment(CommandComments.getComment("maxBlocksPerTick"))
+                    .defineInRange("maxBlocksPerTick", 16384, 0, Integer.MAX_VALUE);
+            cascadeSuppression = builder.comment(CommandComments.getComment("cascadeSuppression"))
+                    .define("cascadeSuppression", false);
             damageTiming = builder.comment(CommandComments.getComment("damageTiming"))
                     .defineEnum("damageTiming", Timing.SPREAD);
             damageMethod = builder.comment(CommandComments.getComment("damageMethod"))
@@ -72,6 +78,12 @@ public class ModConfig {
 
     public static int getExplosionsPerTick() { return COMMON_CONFIG.explosionsPerTick.get(); }
     public static void setExplosionsPerTick(int value) { COMMON_CONFIG.explosionsPerTick.set(value); }
+
+    public static int getMaxBlocksPerTick() { return COMMON_CONFIG.maxBlocksPerTick.get(); }
+    public static void setMaxBlocksPerTick(int value) { COMMON_CONFIG.maxBlocksPerTick.set(value); }
+
+    public static boolean getCascadeSuppression() { return COMMON_CONFIG.cascadeSuppression.get(); }
+    public static void setCascadeSuppression(boolean value) { COMMON_CONFIG.cascadeSuppression.set(value); }
 
 
     public static Timing getDamageTiming() { return COMMON_CONFIG.damageTiming.get(); }

@@ -1,7 +1,7 @@
 package com.github.justoboy.chunkedexplosions;
 
+import com.github.justoboy.chunkedexplosions.common.world.level.ExplosionProcessor;
 import com.github.justoboy.chunkedexplosions.core.ModConfig;
-import com.google.common.collect.Sets;
 import com.mojang.logging.LogUtils;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Explosion;
@@ -14,11 +14,6 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
-import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import com.github.justoboy.chunkedexplosions.common.world.level.ChunkedExplosion;
-
 // The value here should match an entry in the META-INF/mods.toml file
 @Mod(ChunkedExplosions.MODID)
 public class ChunkedExplosions {
@@ -28,12 +23,18 @@ public class ChunkedExplosions {
     // Directly reference a slf4j logger
     private static final Logger LOGGER = LogUtils.getLogger();
 
+    // Define the static instance variable
+    public static ChunkedExplosions INSTANCE;
 
-    // Create a queue of explosions to process
-    private final Queue<ChunkedExplosion> explosionQueue = new ConcurrentLinkedQueue<>();
+    // The explosion processor that manages the dual-queue system
+    private ExplosionProcessor explosionProcessor;
 
     public ChunkedExplosions(FMLJavaModLoadingContext context) {
-//        IEventBus modEventBus = context.getModEventBus();
+        // Assign the instance inside the constructor
+        INSTANCE = this;
+
+        // Initialize the explosion processor
+        this.explosionProcessor = new ExplosionProcessor();
 
         // Register ourselves for server and other game events we are interested in
         MinecraftForge.EVENT_BUS.register(this);
@@ -45,47 +46,28 @@ public class ChunkedExplosions {
         context.registerConfig(net.minecraftforge.fml.config.ModConfig.Type.COMMON, ModConfig.CONFIG_SPEC);
     }
 
+    /**
+     * Gets the explosion processor instance.
+     * This is used by commands and other systems to access the processor.
+     */
+    public static ExplosionProcessor getExplosionProcessor() {
+        return ChunkedExplosions.INSTANCE != null ? ChunkedExplosions.INSTANCE.explosionProcessor : null;
+    }
+
     private void onExplosionStart(ExplosionEvent.Start event) {
         if (ModConfig.getEnable()) {
             Explosion explosion = event.getExplosion();
             Level level = event.getLevel();
 
-            if (level instanceof ServerLevel) {
-                // Create a new queued explosion
-                ChunkedExplosion queuedExplosion = new ChunkedExplosion(explosion);
-                explosionQueue.add(queuedExplosion);
-                LOGGER.info("Initializing explosion, spot {} in queue.", explosionQueue.size());
+            if (level instanceof ServerLevel serverLevel) {
+                // Add to the explosion processor's awaiting queue
+                if (getExplosionProcessor() != null) {
+                    getExplosionProcessor().addExplosion(serverLevel, explosion);
+                    LOGGER.debug("Added explosion to awaiting queue. Total pending: {}", 
+                            getExplosionProcessor().getTotalPendingExplosions());
+                }
                 // Cancel the original explosion
                 event.setCanceled(true);
-            }
-        }
-    }
-
-    public void tick() {
-        if (!explosionQueue.isEmpty()) {
-            Set<ChunkedExplosion> updatedExplosions = Sets.newHashSet();
-            Set<ChunkedExplosion> finalizedExplosions = Sets.newHashSet();
-            for (int i = 0; i < ModConfig.getExplosionsPerTick() || (ModConfig.getExplosionsPerTick() == 0 && i < explosionQueue.size()); i++) {
-                ChunkedExplosion queuedExplosion = explosionQueue.poll();
-                if (queuedExplosion != null) {
-                    if (queuedExplosion.tick()) {
-                        finalizedExplosions.add(queuedExplosion);
-                    } else {
-                        explosionQueue.add(queuedExplosion);
-                        updatedExplosions.add(queuedExplosion);
-                    }
-                }
-            }
-            if (!updatedExplosions.isEmpty()) {
-                for (ChunkedExplosion explosion : updatedExplosions) {
-                    explosion.update();
-                }
-            }
-            if (!finalizedExplosions.isEmpty()) {
-                LOGGER.info("Finalizing {} explosions, {} left in queue.", finalizedExplosions.size(), explosionQueue.size());
-                for (ChunkedExplosion explosion : finalizedExplosions) {
-                    explosion.finalizeExplosion();
-                }
             }
         }
     }
@@ -93,7 +75,16 @@ public class ChunkedExplosions {
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
-            tick();
+            if (getExplosionProcessor() == null) {
+                return;
+            }
+            
+            // Process all server levels (dimensions)
+            for (ServerLevel serverLevel : event.getServer().getAllLevels()) {
+                if (serverLevel != null && !serverLevel.isClientSide()) {
+                    getExplosionProcessor().onServerTick(serverLevel);
+                }
+            }
         }
     }
 }
