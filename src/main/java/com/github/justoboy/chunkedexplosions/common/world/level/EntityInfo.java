@@ -28,12 +28,6 @@ public class EntityInfo {
     /** Pre-calculated knockback vector */
     private final Vec3 knockbackVector;
 
-    /** Whether this entity has been damaged yet */
-    private boolean alreadyDamaged;
-
-    /** Whether this entity has been knocked back yet */
-    private boolean alreadyKnockedBack;
-
     /**
      * Creates a new EntityInfo with pre-calculated explosion effect data.
      *
@@ -51,8 +45,6 @@ public class EntityInfo {
         this.impactFactor = impactFactor;
         this.damage = damage;
         this.knockbackVector = knockbackVector;
-        this.alreadyDamaged = false;
-        this.alreadyKnockedBack = false;
     }
 
     public Entity getEntity() {
@@ -79,30 +71,12 @@ public class EntityInfo {
         return knockbackVector;
     }
 
-    public boolean isAlreadyDamaged() {
-        return alreadyDamaged;
-    }
-
-    public void setAlreadyDamaged(boolean damaged) {
-        this.alreadyDamaged = damaged;
-    }
-
-    public boolean isAlreadyKnockedBack() {
-        return alreadyKnockedBack;
-    }
-
-    public void setAlreadyKnockedBack(boolean knockedBack) {
-        this.alreadyKnockedBack = knockedBack;
-    }
-
     @Override
     public String toString() {
         return "EntityInfo{entity=" + entity.getName().getString() +
                ", distance=" + distance +
                ", visibility=" + visibility +
                ", damage=" + damage +
-               ", alreadyDamaged=" + alreadyDamaged +
-               ", alreadyKnockedBack=" + alreadyKnockedBack +
                "}";
     }
 }

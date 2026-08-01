@@ -106,13 +106,12 @@ public class ExplosionProcessor {
         updateConfig();
 
         // Try to move explosions from awaiting to active queue
-        tryMoveToActiveQueue();
+        tryMoveToActiveQueue(level);
 
         // Process active queue
         processActiveQueue(level);
 
-        // Remove completed explosions
-        removeCompletedExplosions();
+        // Remove completed explosions (done via removeIf in processActiveQueue)
     }
 
     /**
@@ -136,7 +135,7 @@ public class ExplosionProcessor {
      *   - Pre-calculate explosion
      *   - Move to active queue
      */
-    public void tryMoveToActiveQueue() {
+    public void tryMoveToActiveQueue(ServerLevel level) {
         int maxExplosions = ModConfig.getExplosionsPerTick();
         
         // Handle empty awaiting queue
@@ -154,7 +153,7 @@ public class ExplosionProcessor {
             state.preCalculate();
 
             // Apply START timing effects
-            applyStartTimingEffects(state);
+            applyStartTimingEffects(state, level);
 
             // Move to active queue
             awaitingQueue.poll();
@@ -166,22 +165,22 @@ public class ExplosionProcessor {
     }
 
     /**
-      * Applies START timing effects for an explosion.
-      * This includes damage, knockback, sound, and particles based on config.
-      */
-     private void applyStartTimingEffects(ExplosionState state) {
-         // Apply damage (START timing)
-         state.applyDamage(null);
+     * Applies START timing effects for an explosion.
+     * This includes damage, knockback, sound, and particles based on config.
+     */
+    private void applyStartTimingEffects(ExplosionState state, ServerLevel level) {
+        // Apply damage (START timing)
+        state.applyDamage(level);
 
-         // Apply knockback (START timing)
-         state.applyKnockback(null);
+        // Apply knockback (START timing)
+        state.applyKnockback(level);
 
-         // Play sound (START timing)
-         state.playSound();
+        // Play sound (START timing)
+        state.playSound();
 
-         // Spawn particles (START timing)
-         state.spawnParticles();
-     }
+        // Spawn particles (START timing)
+        state.spawnParticles();
+    }
 
     /**
      * Processes all active explosions for this tick.
@@ -227,56 +226,32 @@ public class ExplosionProcessor {
 
             if (isComplete) {
                 // Apply END timing effects
-                applyEndTimingEffects(state);
+                applyEndTimingEffects(state, level);
                 LOGGER.debug("Explosion complete at {}: {} blocks destroyed",
                         state.getPosition(), state.getBlocksDestroyed());
-                explosionsToRemove.add(state);
             }
         }
 
         // Remove completed explosions
-        activeQueue.removeAll(explosionsToRemove);
+        activeQueue.removeIf(state -> state.isComplete());
     }
 
     /**
-      * Applies END timing effects for an explosion.
-      * This includes final damage, knockback, sound, and particles based on config.
-      */
-     private void applyEndTimingEffects(ExplosionState state) {
-         // Finalize damage (END timing)
-         state.finalizeDamage(null);
-
-         // Finalize knockback (END timing)
-         state.finalizeKnockback(null);
-
-         // Finalize sound (END timing)
-         state.finalizeSound();
-
-         // Finalize particles (END timing)
-         state.finalizeParticles();
-     }
-
-    /**
-     * Removes completed explosions from the active queue.
+     * Applies END timing effects for an explosion.
+     * This includes final damage, knockback, sound, and particles based on config.
      */
-    private void removeCompletedExplosions() {
-        Queue<ExplosionState> tempQueue = new ArrayDeque<>();
-        int removedCount = 0;
+    private void applyEndTimingEffects(ExplosionState state, ServerLevel level) {
+        // Finalize damage (END timing)
+        state.finalizeDamage(level);
 
-        for (ExplosionState state : activeQueue) {
-            if (state.isComplete()) {
-                removedCount++;
-            } else {
-                tempQueue.add(state);
-            }
-        }
+        // Finalize knockback (END timing)
+        state.finalizeKnockback(level);
 
-        if (removedCount > 0) {
-            activeQueue.clear();
-            activeQueue.addAll(tempQueue);
-            LOGGER.debug("Removed {} completed explosions: {} remaining", 
-                    removedCount, activeQueue.size());
-        }
+        // Finalize sound (END timing)
+        state.finalizeSound();
+
+        // Finalize particles (END timing)
+        state.finalizeParticles();
     }
 
     /**

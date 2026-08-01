@@ -123,12 +123,6 @@ public class ExplosionState {
     /** Accumulated sound volume for SPREAD timing */
     private float accumulatedSoundVolume;
 
-    /** Track blocks that contributed to sound accumulation for SPREAD timing */
-    private int soundAccumulatedBlocks;
-
-    /** Accumulated particle count for SPREAD timing */
-    private int accumulatedParticleCount;
-
     /** Track blocks that contributed to particle accumulation for SPREAD timing */
     private int particlesAccumulatedBlocks;
 
@@ -181,8 +175,6 @@ public class ExplosionState {
         this.soundPlayed = false;
         this.particlesSpawned = false;
         this.accumulatedSoundVolume = 0.0F;
-        this.soundAccumulatedBlocks = 0;
-        this.accumulatedParticleCount = 0;
         this.particlesAccumulatedBlocks = 0;
         
         this.damageTiming = ModConfig.getDamageTiming();
@@ -811,7 +803,6 @@ public class ExplosionState {
 
         // Accumulate sound volume
         accumulatedSoundVolume += soundPerBlock;
-        soundAccumulatedBlocks++;
     }
 
     /**
@@ -822,7 +813,6 @@ public class ExplosionState {
         if (accumulatedSoundVolume > 0) {
             playSoundInternal(accumulatedSoundVolume);
             accumulatedSoundVolume = 0;
-            soundAccumulatedBlocks = 0;
         }
     }
 
@@ -880,22 +870,6 @@ public class ExplosionState {
     }
 
     /**
-     * Internally spawns explosion particles.
-     */
-    private void spawnParticlesInternal() {
-        if (particlesSpawned) {
-            return;
-        }
-
-        if (!(radius < 2.0F) && interactsWithBlocks()) {
-            level.addParticle(ParticleTypes.EXPLOSION_EMITTER, position.x, position.y, position.z, 1.0, 0.0, 0.0);
-        } else {
-            level.addParticle(ParticleTypes.EXPLOSION, position.x, position.y, position.z, 1.0, 0.0, 0.0);
-        }
-        particlesSpawned = true;
-    }
-
-    /**
      * Accumulates particles for SPREAD timing.
      * Called for each block destroyed when SPREAD timing is enabled.
      * Particles are accumulated and applied once per tick in applySpreadParticles().
@@ -919,9 +893,11 @@ public class ExplosionState {
             if (totalBlocks > 0) {
                 // Calculate how many particles to spawn based on accumulated blocks
                 // Each block contributes proportionally to the total particle count
-                int totalParticles = (radius < 2.0F || !interactsWithBlocks()) ? 1 : 4;
-                int particlesToSpawn = (particlesAccumulatedBlocks * totalParticles) / totalBlocks;
-              
+                // Use fractional accumulation to avoid integer division issues
+                float particleFractionAccumulator = (float) particlesAccumulatedBlocks / totalBlocks * 
+                    ((radius < 2.0F || !interactsWithBlocks()) ? 1 : 4);
+                
+                int particlesToSpawn = (int) particleFractionAccumulator;
                 if (particlesToSpawn > 0) {
                     spawnParticlesInternal(particlesToSpawn, false);
                 }
