@@ -830,10 +830,6 @@ public class ExplosionState {
      * Spawns explosion particles based on the configured timing mode.
      */
     public void spawnParticles() {
-        if (particlesSpawned) {
-            return;
-        }
-
         if (particleTiming == ModConfig.Timing.START) {
             spawnParticlesInternal();
         } else if (particleTiming == ModConfig.Timing.SPREAD) {
@@ -841,7 +837,9 @@ public class ExplosionState {
             // This method is called at START, so we don't spawn anything here
             // Particles will be accumulated and applied in applySpreadParticles()
         } else if (particleTiming == ModConfig.Timing.START_END) {
-            spawnParticlesInternal();
+            if (!particlesSpawned) {
+                spawnParticlesInternal();
+            }
         }
     }
 
@@ -849,10 +847,6 @@ public class ExplosionState {
      * Finalizes particle spawning (END timing).
      */
     public void finalizeParticles() {
-        if (particlesSpawned) {
-            return;
-        }
-
         if (particleTiming == ModConfig.Timing.END) {
             spawnParticlesInternal();
         } else if (particleTiming == ModConfig.Timing.SPREAD) {
@@ -860,9 +854,29 @@ public class ExplosionState {
             if (particlesAccumulatedBlocks > 0) {
                 applySpreadParticles();
             }
+            // Mark particles as complete for SPREAD timing
+            particlesSpawned = true;
         } else if (particleTiming == ModConfig.Timing.START_END) {
-            spawnParticlesInternal();
+            if (!particlesSpawned) {
+                spawnParticlesInternal();
+            }
         }
+    }
+
+    /**
+     * Internally spawns explosion particles.
+     */
+    private void spawnParticlesInternal() {
+        if (particlesSpawned) {
+            return;
+        }
+
+        if (!(radius < 2.0F) && interactsWithBlocks()) {
+            level.addParticle(ParticleTypes.EXPLOSION_EMITTER, position.x, position.y, position.z, 1.0, 0.0, 0.0);
+        } else {
+            level.addParticle(ParticleTypes.EXPLOSION, position.x, position.y, position.z, 1.0, 0.0, 0.0);
+        }
+        particlesSpawned = true;
     }
 
     /**
@@ -905,11 +919,11 @@ public class ExplosionState {
             if (totalBlocks > 0) {
                 // Calculate how many particles to spawn based on accumulated blocks
                 // Each block contributes proportionally to the total particle count
-                int totalParticles = (radius < 2.0F || !interactsWithBlocks()) ? 1 : 1;
+                int totalParticles = (radius < 2.0F || !interactsWithBlocks()) ? 1 : 4;
                 int particlesToSpawn = (particlesAccumulatedBlocks * totalParticles) / totalBlocks;
-                
+              
                 if (particlesToSpawn > 0) {
-                    spawnParticlesInternal(particlesToSpawn);
+                    spawnParticlesInternal(particlesToSpawn, false);
                 }
             }
             particlesAccumulatedBlocks = 0;
@@ -919,12 +933,9 @@ public class ExplosionState {
     /**
      * Internally spawns explosion particles with optional count.
      * @param count The number of particles to spawn (0 or negative means use default behavior)
+     * @param markComplete Whether to mark particles as fully spawned (true for non-SPREAD timing)
      */
-    private void spawnParticlesInternal(int count) {
-        if (particlesSpawned) {
-            return;
-        }
-
+    private void spawnParticlesInternal(int count, boolean markComplete) {
         if (count <= 0) {
             // Default behavior: spawn single particle
             if (!(radius < 2.0F) && interactsWithBlocks()) {
@@ -942,7 +953,9 @@ public class ExplosionState {
                 }
             }
         }
-        particlesSpawned = true;
+        if (markComplete) {
+            particlesSpawned = true;
+        }
     }
 
     // === Getters ===

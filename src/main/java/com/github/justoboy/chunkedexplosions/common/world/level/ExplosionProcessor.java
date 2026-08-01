@@ -45,9 +45,6 @@ public class ExplosionProcessor {
     /** Whether the processor has been initialized */
     private boolean initialized = false;
 
-    /** Maximum queue size to prevent memory overflow (0 for unlimited) */
-    private static final int MAX_QUEUE_SIZE = 10000;
-
     /** Counter for rejected explosions due to queue overflow */
     private int rejectedExplosionsCount;
 
@@ -71,10 +68,11 @@ public class ExplosionProcessor {
         }
 
         // Check for queue overflow
-        if (MAX_QUEUE_SIZE > 0 && awaitingQueue.size() >= MAX_QUEUE_SIZE) {
+        int maxQueueSize = ModConfig.getMaxQueueSize();
+        if (maxQueueSize > 0 && awaitingQueue.size() >= maxQueueSize) {
             rejectedExplosionsCount++;
             LOGGER.warn("Queue overflow: rejected explosion (queue size: {}, max: {}). Rejected this tick: {}",
-                    awaitingQueue.size(), MAX_QUEUE_SIZE, rejectedExplosionsCount);
+                    awaitingQueue.size(), maxQueueSize, rejectedExplosionsCount);
             return null;
         }
 

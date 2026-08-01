@@ -15,6 +15,7 @@ public class ChunkedExplosionsCommand {
                         .then(ExplosionsPerTickCommand.register(buildContext))
                         .then(BlocksPerExplosionTickCommand.register(buildContext))
                         .then(MaxBlocksPerTickCommand.register(buildContext))
+                        .then(MaxQueueSizeCommand.register(buildContext))
                         .then(DamageTimingCommand.register(buildContext))
                         .then(DamageMethodCommand.register(buildContext))
                         .then(SoundTimingCommand.register(buildContext))

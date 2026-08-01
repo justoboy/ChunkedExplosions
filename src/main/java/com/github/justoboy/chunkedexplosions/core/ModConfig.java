@@ -24,6 +24,7 @@ public class ModConfig {
         public final ForgeConfigSpec.ConfigValue<Integer> blocksPerExplosionTick;
         public final ForgeConfigSpec.ConfigValue<Integer> explosionsPerTick;
         public final ForgeConfigSpec.ConfigValue<Integer> maxBlocksPerTick;
+        public final ForgeConfigSpec.ConfigValue<Integer> maxQueueSize;
         public final ForgeConfigSpec.BooleanValue cascadeSuppression;
         public final ForgeConfigSpec.EnumValue<Timing> damageTiming;
         public final ForgeConfigSpec.EnumValue<Method> damageMethod;
@@ -43,6 +44,8 @@ public class ModConfig {
                     .defineInRange("explosionsPerTick", 1024, 0, Integer.MAX_VALUE);
             maxBlocksPerTick = builder.comment(CommandComments.getComment("maxBlocksPerTick"))
                     .defineInRange("maxBlocksPerTick", 16384, 0, Integer.MAX_VALUE);
+            maxQueueSize = builder.comment(CommandComments.getComment("maxQueueSize"))
+                    .defineInRange("maxQueueSize", 10000, 0, Integer.MAX_VALUE);
             cascadeSuppression = builder.comment(CommandComments.getComment("cascadeSuppression"))
                     .define("cascadeSuppression", false);
             damageTiming = builder.comment(CommandComments.getComment("damageTiming"))
@@ -81,6 +84,9 @@ public class ModConfig {
 
     public static int getMaxBlocksPerTick() { return COMMON_CONFIG.maxBlocksPerTick.get(); }
     public static void setMaxBlocksPerTick(int value) { COMMON_CONFIG.maxBlocksPerTick.set(value); }
+
+    public static int getMaxQueueSize() { return COMMON_CONFIG.maxQueueSize.get(); }
+    public static void setMaxQueueSize(int value) { COMMON_CONFIG.maxQueueSize.set(value); }
 
     public static boolean getCascadeSuppression() { return COMMON_CONFIG.cascadeSuppression.get(); }
     public static void setCascadeSuppression(boolean value) { COMMON_CONFIG.cascadeSuppression.set(value); }
