@@ -9,12 +9,45 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 
+/**
+ * Command to configure when damage from explosions is applied to entities.
+ * <p>
+ * This controls the timing of damage application during explosion processing.
+ * The available modes determine when and how damage is distributed over time.
+ * </p>
+ * 
+ * <h2>Usage</h2>
+ * <ul>
+ *   <li>{@code /chunkedexplosions damageTiming} - Get current timing mode</li>
+ *   <li>{@code /chunkedexplosions damageTiming <mode>} - Set timing mode</li>
+ * </ul>
+ * 
+ * <h2>Timing Modes</h2>
+ * <ul>
+ *   <li><b>START:</b> All damage is applied immediately when the explosion begins</li>
+ *   <li><b>END:</b> All damage is applied when the explosion finishes processing</li>
+ *   <li><b>START_END:</b> Damage is split between START and END phases</li>
+ *   <li><b>SPREAD:</b> Damage is accumulated and applied once per tick during processing</li>
+ * </ul>
+ * 
+ * <h2>Interaction with Damage Method</h2>
+ * <p>
+ * When using START_END or SPREAD timing, the {@code damageMethod} setting
+ * determines whether damage is applied all at once or spread over time.
+ * </p>
+ */
 public class DamageTimingCommand {
 
     static {
-        CommandComments.addComment("damageTiming", "When damage from explosions is applied to entities.");
+        CommandComments.addComment("damageTiming", "When damage from explosions is applied to entities. Options: START, END, START_END, SPREAD");
     }
-
+    
+    /**
+     * Registers the damageTiming command with the command dispatcher.
+     * 
+     * @param ignoredBuildContext the command build context (unused for this command)
+     * @return an argument builder for the damageTiming command
+     */
     public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext ignoredBuildContext) {
         return Commands.literal("damageTiming")
                 .then(Commands.argument("value", StringArgumentType.word())
@@ -23,6 +56,13 @@ public class DamageTimingCommand {
         .executes(DamageTimingCommand::sendValueMessage);
     }
 
+    /**
+     * Sets the damage timing mode.
+     * 
+     * @param context the command context
+     * @param value the timing mode as a string (case-insensitive)
+     * @return the command execution result (1 for success, 0 for failure)
+     */
     private static int setValue(CommandContext<CommandSourceStack> context, String value) {
         try {
             ModConfig.Timing timing = ModConfig.Timing.valueOf(value.toUpperCase());
@@ -35,6 +75,12 @@ public class DamageTimingCommand {
         }
     }
 
+    /**
+     * Sends a message showing the current damage timing mode.
+     * 
+     * @param context the command context
+     * @return the command execution result (1 for success)
+     */
     private static int sendValueMessage(CommandContext<CommandSourceStack> context) {
         context.getSource().sendSuccess(() -> Component.literal("Damage timing: " + ModConfig.getDamageTiming()), true);
         return 1;
