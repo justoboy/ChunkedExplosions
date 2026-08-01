@@ -45,6 +45,12 @@ public class ExplosionProcessor {
     /** Whether the processor has been initialized */
     private boolean initialized = false;
 
+    /** Maximum queue size to prevent memory overflow (0 for unlimited) */
+    private static final int MAX_QUEUE_SIZE = 10000;
+
+    /** Counter for rejected explosions due to queue overflow */
+    private int rejectedExplosionsCount;
+
     public ExplosionProcessor() {
         this.initialized = true;
         this.blocksDestroyedThisTick = 0;
@@ -61,6 +67,14 @@ public class ExplosionProcessor {
     public ExplosionState addExplosion(ServerLevel level, Explosion explosion) {
         if (!initialized) {
             LOGGER.warn("Cannot add explosion to uninitialized processor");
+            return null;
+        }
+
+        // Check for queue overflow
+        if (MAX_QUEUE_SIZE > 0 && awaitingQueue.size() >= MAX_QUEUE_SIZE) {
+            rejectedExplosionsCount++;
+            LOGGER.warn("Queue overflow: rejected explosion (queue size: {}, max: {}). Rejected this tick: {}",
+                    awaitingQueue.size(), MAX_QUEUE_SIZE, rejectedExplosionsCount);
             return null;
         }
 
@@ -86,6 +100,9 @@ public class ExplosionProcessor {
 
         // Reset the block counter for this tick
         blocksDestroyedThisTick = 0;
+
+        // Reset rejected explosions counter for this tick
+        rejectedExplosionsCount = 0;
 
         // Update config values for all states
         updateConfig();
@@ -124,6 +141,11 @@ public class ExplosionProcessor {
     public void tryMoveToActiveQueue() {
         int maxExplosions = ModConfig.getExplosionsPerTick();
         
+        // Handle empty awaiting queue
+        if (awaitingQueue.isEmpty()) {
+            return;
+        }
+        
         while (activeQueue.size() < maxExplosions && !awaitingQueue.isEmpty()) {
             ExplosionState state = awaitingQueue.peek();
             if (state == null) {
@@ -140,7 +162,7 @@ public class ExplosionProcessor {
             awaitingQueue.poll();
             activeQueue.add(state);
 
-            LOGGER.debug("Moved explosion to active queue: {} active, {} awaiting", 
+            LOGGER.debug("Moved explosion to active queue: {} active, {} awaiting",
                     activeQueue.size(), awaitingQueue.size());
         }
     }
@@ -173,6 +195,11 @@ public class ExplosionProcessor {
      *   - Mark for removal if complete
      */
     private void processActiveQueue(ServerLevel level) {
+        // Handle empty active queue
+        if (activeQueue.isEmpty()) {
+            return;
+        }
+        
         int maxBlocksPerTick = ModConfig.getMaxBlocksPerTick();
 
         // Collect explosions to remove
@@ -203,7 +230,7 @@ public class ExplosionProcessor {
             if (isComplete) {
                 // Apply END timing effects
                 applyEndTimingEffects(state);
-                LOGGER.debug("Explosion complete at {}: {} blocks destroyed", 
+                LOGGER.debug("Explosion complete at {}: {} blocks destroyed",
                         state.getPosition(), state.getBlocksDestroyed());
                 explosionsToRemove.add(state);
             }

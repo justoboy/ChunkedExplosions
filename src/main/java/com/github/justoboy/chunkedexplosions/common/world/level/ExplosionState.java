@@ -3,6 +3,7 @@ package com.github.justoboy.chunkedexplosions.common.world.level;
 import com.github.justoboy.chunkedexplosions.core.ModConfig;
 import com.github.justoboy.chunkedexplosions.iduck.world.level.IExplosionDuck;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
@@ -16,23 +17,18 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.ProtectionEnchantment;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.gameevent.GameEvent;
-import net.minecraft.world.level.storage.loot.LootParams;
-import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.event.ForgeEventFactory;
 import org.slf4j.Logger;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.SplittableRandom;
 
@@ -83,11 +79,17 @@ public class ExplosionState {
     /** Pre-calculated set of blocks to destroy */
     private Set<BlockPos> blocksToDestroy;
 
+    /** Ordered list of blocks for efficient iteration (populated after pre-calculation) */
+    private List<BlockPos> blocksList;
+
     /** Pre-calculated entity effects data */
     private List<EntityInfo> affectedEntities;
 
     /** Whether pre-calculation is complete */
     private boolean preCalculationComplete;
+
+    /** Block destroyer instance for handling block destruction */
+    private BlockDestroyer blockDestroyer;
 
     // === Processing State (updated during tick processing) ===
 
@@ -103,6 +105,12 @@ public class ExplosionState {
     /** Set of entities that have been knocked back (for ONCE method) */
     private final Set<Entity> knockedBackEntities;
 
+    /** Accumulated damage per entity for SPREAD timing */
+    private final Map<Entity, Float> accumulatedDamage;
+
+    /** Accumulated knockback per entity for SPREAD timing */
+    private final Map<Entity, Vec3> accumulatedKnockback;
+
     /** Whether all effects (damage/knockback/sound/particles) are complete */
     private boolean effectsComplete;
 
@@ -111,6 +119,18 @@ public class ExplosionState {
 
     /** Whether particles have been spawned */
     private boolean particlesSpawned;
+
+    /** Accumulated sound volume for SPREAD timing */
+    private float accumulatedSoundVolume;
+
+    /** Track blocks that contributed to sound accumulation for SPREAD timing */
+    private int soundAccumulatedBlocks;
+
+    /** Accumulated particle count for SPREAD timing */
+    private int accumulatedParticleCount;
+
+    /** Track blocks that contributed to particle accumulation for SPREAD timing */
+    private int particlesAccumulatedBlocks;
 
     // === Configuration (read from ModConfig) ===
 
@@ -144,16 +164,26 @@ public class ExplosionState {
         this.blockInteraction = duck.chunked_getBlockInteraction();
         
         this.blocksToDestroy = Sets.newHashSet();
+        this.blocksList = Lists.newArrayList();
         this.affectedEntities = Lists.newArrayList();
         this.preCalculationComplete = false;
+        
+        // Initialize block destroyer
+        this.blockDestroyer = new BlockDestroyer(blockInteraction, radius, source, fire);
         
         this.currentBlockIndex = 0;
         this.blocksDestroyed = 0;
         this.damagedEntities = Sets.newHashSet();
         this.knockedBackEntities = Sets.newHashSet();
+        this.accumulatedDamage = Maps.newHashMap();
+        this.accumulatedKnockback = Maps.newHashMap();
         this.effectsComplete = false;
         this.soundPlayed = false;
         this.particlesSpawned = false;
+        this.accumulatedSoundVolume = 0.0F;
+        this.soundAccumulatedBlocks = 0;
+        this.accumulatedParticleCount = 0;
+        this.particlesAccumulatedBlocks = 0;
         
         this.damageTiming = ModConfig.getDamageTiming();
         this.knockbackTiming = ModConfig.getKnockbackTiming();
@@ -188,7 +218,10 @@ public class ExplosionState {
         // Mark pre-calculation as complete
         this.preCalculationComplete = true;
 
-        LOGGER.debug("Pre-calculation complete: {} blocks, {} entities", 
+        // Convert blocksToDestroy to ordered list for efficient O(1) access
+        blocksList = Lists.newArrayList(blocksToDestroy);
+        
+        LOGGER.debug("Pre-calculation complete: {} blocks, {} entities",
                 blocksToDestroy.size(), affectedEntities.size());
     }
 
@@ -369,6 +402,8 @@ public class ExplosionState {
         }
 
         if (blocksToDestroy.isEmpty()) {
+            // Apply SPREAD effects if any accumulated
+            applySpreadEffects(serverLevel);
             effectsComplete = true;
             return true;
         }
@@ -386,11 +421,23 @@ public class ExplosionState {
 
             // Destroy the block
             destroyBlock(serverLevel, blockPos);
+        
+            // Accumulate SPREAD timing effects for this block
+            accumulateSpreadEffects();
             
+            // Accumulate SPREAD timing sound effects for this block
+            accumulateSoundEffects();
+            
+            // Accumulate SPREAD timing particle effects for this block
+            accumulateParticleEffects();
+        
             currentBlockIndex++;
             blocksDestroyed++;
             blocksThisTick++;
         }
+
+        // Apply SPREAD timing effects (accumulated per tick)
+        applySpreadEffects(serverLevel);
 
         // Check if all blocks are destroyed
         if (currentBlockIndex >= totalBlocks) {
@@ -403,57 +450,22 @@ public class ExplosionState {
 
     /**
      * Gets the current block to process without advancing the index.
+     * Uses the pre-computed blocksList for O(1) access instead of O(n) iteration.
      */
     private BlockPos getCurrentBlock() {
-        if (currentBlockIndex >= blocksToDestroy.size()) {
+        if (blocksList == null || currentBlockIndex >= blocksList.size()) {
             return null;
         }
         
-        // Convert from Set to ordered access
-        // Since we're using HashSet, we need to iterate to the index
-        int currentIndex = 0;
-        for (BlockPos pos : blocksToDestroy) {
-            if (currentIndex == currentBlockIndex) {
-                return pos;
-            }
-            currentIndex++;
-        }
-        return null;
+        // O(1) access from the pre-computed list
+        return blocksList.get(currentBlockIndex);
     }
 
     /**
-     * Destroys a single block and handles drops/fire.
+     * Destroys a single block using the BlockDestroyer.
      */
     private void destroyBlock(ServerLevel serverLevel, BlockPos blockPos) {
-        BlockState blockState = serverLevel.getBlockState(blockPos);
-        
-        if (blockState.isAir()) {
-            return;
-        }
-
-        // Get block entity for loot
-        BlockEntity blockEntity = blockState.hasBlockEntity() ? serverLevel.getBlockEntity(blockPos) : null;
-
-        // Create loot context
-        LootParams.Builder lootContextBuilder = (new LootParams.Builder(serverLevel))
-                .withParameter(LootContextParams.ORIGIN, Vec3.atCenterOf(blockPos))
-                .withParameter(LootContextParams.TOOL, ItemStack.EMPTY)
-                .withOptionalParameter(LootContextParams.BLOCK_ENTITY, blockEntity)
-                .withOptionalParameter(LootContextParams.THIS_ENTITY, source);
-
-        if (blockInteraction == Explosion.BlockInteraction.DESTROY_WITH_DECAY) {
-            lootContextBuilder.withParameter(LootContextParams.EXPLOSION_RADIUS, radius);
-        }
-
-        // Spawn drops
-        blockState.spawnAfterBreak(serverLevel, blockPos, ItemStack.EMPTY, 
-                getIndirectSourceEntity() instanceof Player);
-        blockState.getDrops(lootContextBuilder).forEach((itemStack) -> 
-                Block.popResource(serverLevel, blockPos, itemStack));
-
-        // Set block to air
-        serverLevel.setBlock(blockPos, Blocks.AIR.defaultBlockState(), 
-                Block.UPDATE_ALL);
+        blockDestroyer.destroyBlock(serverLevel, blockPos);
     }
 
     // === Entity Effect Methods ===
@@ -464,6 +476,10 @@ public class ExplosionState {
      public void applyDamage(ServerLevel serverLevel) {
          if (damageTiming == ModConfig.Timing.START) {
              applyAllDamage(1.0F);
+         } else if (damageTiming == ModConfig.Timing.SPREAD) {
+             // SPREAD timing accumulates damage during block destruction
+             // This method is called at START, so we don't apply anything here
+             // Damage will be accumulated and applied in applySpreadEffects()
          } else if (damageTiming == ModConfig.Timing.START_END) {
              if (ModConfig.getDamageMethod() == ModConfig.Method.ONCE) {
                  applyAllDamage(1.0F);
@@ -479,6 +495,11 @@ public class ExplosionState {
      public void finalizeDamage(ServerLevel serverLevel) {
          if (damageTiming == ModConfig.Timing.END) {
              applyAllDamage(1.0F);
+         } else if (damageTiming == ModConfig.Timing.SPREAD) {
+             // SPREAD timing: apply any remaining accumulated damage
+             if (!accumulatedDamage.isEmpty()) {
+                 applySpreadDamage(serverLevel);
+             }
          } else if (damageTiming == ModConfig.Timing.START_END) {
              if (ModConfig.getDamageMethod() == ModConfig.Method.ONCE) {
                  applyAllDamage(1.0F);
@@ -515,6 +536,10 @@ public class ExplosionState {
      public void applyKnockback(ServerLevel serverLevel) {
          if (knockbackTiming == ModConfig.Timing.START) {
              applyAllKnockback(1.0F);
+         } else if (knockbackTiming == ModConfig.Timing.SPREAD) {
+             // SPREAD timing accumulates knockback during block destruction
+             // This method is called at START, so we don't apply anything here
+             // Knockback will be accumulated and applied in applySpreadEffects()
          } else if (knockbackTiming == ModConfig.Timing.START_END) {
              if (ModConfig.getKnockbackMethod() == ModConfig.Method.ONCE) {
                  applyAllKnockback(1.0F);
@@ -530,6 +555,11 @@ public class ExplosionState {
      public void finalizeKnockback(ServerLevel serverLevel) {
          if (knockbackTiming == ModConfig.Timing.END) {
              applyAllKnockback(1.0F);
+         } else if (knockbackTiming == ModConfig.Timing.SPREAD) {
+             // SPREAD timing: apply any remaining accumulated knockback
+             if (!accumulatedKnockback.isEmpty()) {
+                 applySpreadKnockback(serverLevel);
+             }
          } else if (knockbackTiming == ModConfig.Timing.START_END) {
              if (ModConfig.getKnockbackMethod() == ModConfig.Method.ONCE) {
                  applyAllKnockback(1.0F);
@@ -538,37 +568,159 @@ public class ExplosionState {
              }
          }
      }
-
+ 
      /**
       * Applies knockback to all affected entities.
       */
      private void applyAllKnockback(float spread) {
          for (EntityInfo entityInfo : affectedEntities) {
              Entity entity = entityInfo.getEntity();
-            
+         
              if (entity.isAlive() && !knockedBackEntities.contains(entity)) {
                  Vec3 knockbackVector = entityInfo.getKnockbackVector();
                  float impactFactor = entityInfo.getImpactFactor();
-            
+         
                  if (spread != 1.0F) {
                      impactFactor *= spread;
                  }
-            
+         
                  double knockbackFactor;
                  if (entity instanceof LivingEntity livingEntity) {
                      knockbackFactor = ProtectionEnchantment.getExplosionKnockbackAfterDampener(livingEntity, impactFactor);
                  } else {
                      knockbackFactor = impactFactor;
                  }
-
+         
                  Vec3 deltaMovement = knockbackVector.scale(knockbackFactor);
                  entity.setDeltaMovement(entity.getDeltaMovement().add(deltaMovement));
                  knockedBackEntities.add(entity);
              }
          }
      }
-
-    // === Sound and Particle Methods ===
+ 
+    /**
+     * Applies accumulated SPREAD timing effects once per tick.
+     * This method is called after each tick's block destruction is complete.
+     * It applies the accumulated damage, knockback, sound, and particles, then clears the accumulators.
+     */
+    private void applySpreadEffects(ServerLevel serverLevel) {
+        // Apply SPREAD damage if timing mode is SPREAD
+        if (damageTiming == ModConfig.Timing.SPREAD && !accumulatedDamage.isEmpty()) {
+            applySpreadDamage(serverLevel);
+        }
+        
+        // Apply SPREAD knockback if timing mode is SPREAD
+        if (knockbackTiming == ModConfig.Timing.SPREAD && !accumulatedKnockback.isEmpty()) {
+            applySpreadKnockback(serverLevel);
+        }
+        
+        // Apply SPREAD sound if timing mode is SPREAD
+        if (soundTiming == ModConfig.Timing.SPREAD && accumulatedSoundVolume > 0) {
+            applySpreadSound();
+        }
+        
+        // Apply SPREAD particles if timing mode is SPREAD
+        if (particleTiming == ModConfig.Timing.SPREAD && particlesAccumulatedBlocks > 0) {
+            applySpreadParticles();
+        }
+    }
+ 
+     /**
+      * Applies accumulated damage to entities for SPREAD timing.
+      * Damage is accumulated per block destroyed and applied once per tick.
+      */
+     private void applySpreadDamage(ServerLevel serverLevel) {
+         DamageSource damageSource = ((IExplosionDuck) originalExplosion).chunked_getDamageSource();
+         
+         for (Map.Entry<Entity, Float> entry : accumulatedDamage.entrySet()) {
+             Entity entity = entry.getKey();
+             float accumulated = entry.getValue();
+             
+             if (entity.isAlive() && !damagedEntities.contains(entity)) {
+                 entity.hurt(damageSource, accumulated);
+                 damagedEntities.add(entity);
+             }
+         }
+         
+         // Clear accumulated damage for next tick
+         accumulatedDamage.clear();
+     }
+ 
+     /**
+      * Applies accumulated knockback to entities for SPREAD timing.
+      * Knockback is accumulated per block destroyed and applied once per tick.
+      */
+     private void applySpreadKnockback(ServerLevel serverLevel) {
+         for (Map.Entry<Entity, Vec3> entry : accumulatedKnockback.entrySet()) {
+             Entity entity = entry.getKey();
+             Vec3 accumulated = entry.getValue();
+             
+             if (entity.isAlive() && !knockedBackEntities.contains(entity)) {
+                 entity.setDeltaMovement(entity.getDeltaMovement().add(accumulated));
+                 knockedBackEntities.add(entity);
+             }
+         }
+         
+         // Clear accumulated knockback for next tick
+         accumulatedKnockback.clear();
+     }
+ 
+     /**
+      * Accumulates damage and knockback for SPREAD timing.
+      * Called for each block destroyed when SPREAD timing is enabled.
+      * Effects are accumulated and applied once per tick in applySpreadEffects().
+      */
+     private void accumulateSpreadEffects() {
+         // Only accumulate if SPREAD timing is enabled
+         if (damageTiming != ModConfig.Timing.SPREAD && knockbackTiming != ModConfig.Timing.SPREAD) {
+             return;
+         }
+         
+         int totalBlocks = blocksToDestroy.size();
+         if (totalBlocks == 0) {
+             return;
+         }
+         
+         // Calculate the proportion of damage/knockback for this single block
+         // Each block contributes 1/totalBlocks of the total effect
+         float damagePerBlock = 1.0F / totalBlocks;
+         float knockbackPerBlock = 1.0F / totalBlocks;
+         
+         // Accumulate damage for each entity
+         if (damageTiming == ModConfig.Timing.SPREAD) {
+             for (EntityInfo entityInfo : affectedEntities) {
+                 Entity entity = entityInfo.getEntity();
+                 float entityDamage = entityInfo.getDamage() * damagePerBlock;
+                 
+                 // Add to accumulated damage (or create new entry)
+                 accumulatedDamage.merge(entity, entityDamage, Float::sum);
+             }
+         }
+         
+         // Accumulate knockback for each entity
+         if (knockbackTiming == ModConfig.Timing.SPREAD) {
+             for (EntityInfo entityInfo : affectedEntities) {
+                 Entity entity = entityInfo.getEntity();
+                 Vec3 knockbackVector = entityInfo.getKnockbackVector();
+                 float impactFactor = entityInfo.getImpactFactor();
+                 
+                 // Apply protection enchantment dampening for knockback calculation
+                 double knockbackFactor;
+                 if (entity instanceof LivingEntity livingEntity) {
+                     knockbackFactor = ProtectionEnchantment.getExplosionKnockbackAfterDampener(livingEntity, impactFactor * knockbackPerBlock);
+                 } else {
+                     knockbackFactor = impactFactor * knockbackPerBlock;
+                 }
+                 
+                 Vec3 accumulatedVector = knockbackVector.scale(knockbackFactor);
+                 
+                 // Add to accumulated knockback (or create new entry)
+                 accumulatedKnockback.merge(entity, accumulatedVector, (v1, v2) -> v1.add(v2));
+             }
+         }
+     }
+ 
+     // === Sound and Particle Methods ===
 
     /**
      * Plays the explosion sound based on the configured timing mode.
@@ -580,6 +732,10 @@ public class ExplosionState {
 
         if (soundTiming == ModConfig.Timing.START) {
             playSoundInternal(1.0F);
+        } else if (soundTiming == ModConfig.Timing.SPREAD) {
+            // SPREAD timing: accumulate sound during block destruction
+            // This method is called at START, so we don't play anything here
+            // Sound will be accumulated and applied in applySpreadSound()
         } else if (soundTiming == ModConfig.Timing.START_END) {
             if (!ModConfig.getSoundVolumeSplit()) {
                 playSoundInternal(1.0F);
@@ -599,6 +755,11 @@ public class ExplosionState {
 
          if (soundTiming == ModConfig.Timing.END) {
              playSoundInternal(1.0F);
+         } else if (soundTiming == ModConfig.Timing.SPREAD) {
+             // SPREAD timing: apply any remaining accumulated sound
+             if (accumulatedSoundVolume > 0) {
+                 applySpreadSound();
+             }
          } else if (soundTiming == ModConfig.Timing.START_END) {
              if (!ModConfig.getSoundVolumeSplit()) {
                  playSoundInternal(1.0F);
@@ -629,6 +790,43 @@ public class ExplosionState {
     }
 
     /**
+     * Accumulates sound volume for SPREAD timing.
+     * Called for each block destroyed when SPREAD timing is enabled.
+     * Sound is accumulated and applied once per tick in applySpreadSound().
+     */
+    private void accumulateSoundEffects() {
+        // Only accumulate if SPREAD timing is enabled
+        if (soundTiming != ModConfig.Timing.SPREAD) {
+            return;
+        }
+
+        int totalBlocks = blocksToDestroy.size();
+        if (totalBlocks == 0) {
+            return;
+        }
+
+        // Calculate the proportion of sound volume for this single block
+        // Each block contributes 1/totalBlocks of the total sound
+        float soundPerBlock = 1.0F / totalBlocks;
+
+        // Accumulate sound volume
+        accumulatedSoundVolume += soundPerBlock;
+        soundAccumulatedBlocks++;
+    }
+
+    /**
+     * Applies accumulated sound for SPREAD timing.
+     * Sound is accumulated per block destroyed and applied once per tick.
+     */
+    private void applySpreadSound() {
+        if (accumulatedSoundVolume > 0) {
+            playSoundInternal(accumulatedSoundVolume);
+            accumulatedSoundVolume = 0;
+            soundAccumulatedBlocks = 0;
+        }
+    }
+
+    /**
      * Spawns explosion particles based on the configured timing mode.
      */
     public void spawnParticles() {
@@ -636,7 +834,13 @@ public class ExplosionState {
             return;
         }
 
-        if (particleTiming == ModConfig.Timing.START || particleTiming == ModConfig.Timing.START_END) {
+        if (particleTiming == ModConfig.Timing.START) {
+            spawnParticlesInternal();
+        } else if (particleTiming == ModConfig.Timing.SPREAD) {
+            // SPREAD timing: accumulate particles during block destruction
+            // This method is called at START, so we don't spawn anything here
+            // Particles will be accumulated and applied in applySpreadParticles()
+        } else if (particleTiming == ModConfig.Timing.START_END) {
             spawnParticlesInternal();
         }
     }
@@ -649,7 +853,14 @@ public class ExplosionState {
             return;
         }
 
-        if (particleTiming == ModConfig.Timing.END || particleTiming == ModConfig.Timing.START_END) {
+        if (particleTiming == ModConfig.Timing.END) {
+            spawnParticlesInternal();
+        } else if (particleTiming == ModConfig.Timing.SPREAD) {
+            // SPREAD timing: apply any remaining accumulated particles
+            if (particlesAccumulatedBlocks > 0) {
+                applySpreadParticles();
+            }
+        } else if (particleTiming == ModConfig.Timing.START_END) {
             spawnParticlesInternal();
         }
     }
@@ -666,6 +877,70 @@ public class ExplosionState {
             level.addParticle(ParticleTypes.EXPLOSION_EMITTER, position.x, position.y, position.z, 1.0, 0.0, 0.0);
         } else {
             level.addParticle(ParticleTypes.EXPLOSION, position.x, position.y, position.z, 1.0, 0.0, 0.0);
+        }
+        particlesSpawned = true;
+    }
+
+    /**
+     * Accumulates particles for SPREAD timing.
+     * Called for each block destroyed when SPREAD timing is enabled.
+     * Particles are accumulated and applied once per tick in applySpreadParticles().
+     */
+    private void accumulateParticleEffects() {
+        // Only accumulate if SPREAD timing is enabled
+        if (particleTiming != ModConfig.Timing.SPREAD) {
+            return;
+        }
+
+        particlesAccumulatedBlocks++;
+    }
+
+    /**
+     * Applies accumulated particles for SPREAD timing.
+     * Particles are accumulated per block destroyed and applied once per tick.
+     */
+    private void applySpreadParticles() {
+        if (particlesAccumulatedBlocks > 0) {
+            int totalBlocks = blocksToDestroy.size();
+            if (totalBlocks > 0) {
+                // Calculate how many particles to spawn based on accumulated blocks
+                // Each block contributes proportionally to the total particle count
+                int totalParticles = (radius < 2.0F || !interactsWithBlocks()) ? 1 : 1;
+                int particlesToSpawn = (particlesAccumulatedBlocks * totalParticles) / totalBlocks;
+                
+                if (particlesToSpawn > 0) {
+                    spawnParticlesInternal(particlesToSpawn);
+                }
+            }
+            particlesAccumulatedBlocks = 0;
+        }
+    }
+
+    /**
+     * Internally spawns explosion particles with optional count.
+     * @param count The number of particles to spawn (0 or negative means use default behavior)
+     */
+    private void spawnParticlesInternal(int count) {
+        if (particlesSpawned) {
+            return;
+        }
+
+        if (count <= 0) {
+            // Default behavior: spawn single particle
+            if (!(radius < 2.0F) && interactsWithBlocks()) {
+                level.addParticle(ParticleTypes.EXPLOSION_EMITTER, position.x, position.y, position.z, 1.0, 0.0, 0.0);
+            } else {
+                level.addParticle(ParticleTypes.EXPLOSION, position.x, position.y, position.z, 1.0, 0.0, 0.0);
+            }
+        } else {
+            // Spawn multiple particles for SPREAD timing
+            for (int i = 0; i < count; i++) {
+                if (!(radius < 2.0F) && interactsWithBlocks()) {
+                    level.addParticle(ParticleTypes.EXPLOSION_EMITTER, position.x, position.y, position.z, 1.0, 0.0, 0.0);
+                } else {
+                    level.addParticle(ParticleTypes.EXPLOSION, position.x, position.y, position.z, 1.0, 0.0, 0.0);
+                }
+            }
         }
         particlesSpawned = true;
     }
