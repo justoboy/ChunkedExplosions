@@ -28,6 +28,4 @@ public class ChunkedExplosion {
     }
 
     public void finalizeExplosion() { ((IExplosionDuck) explosion).chunked_finalize(); }
-
-    public void update() { ((IExplosionDuck) explosion).chunked_update(); }
 }

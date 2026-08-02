@@ -21,12 +21,11 @@ import net.minecraft.commands.Commands;
  *   <li>{@code maxBlocksPerTick} - Global maximum blocks destroyed per tick</li>
  *   <li>{@code maxQueueSize} - Maximum pending explosions in queue</li>
  *   <li>{@code damageTiming} - When damage is applied to entities</li>
- *   <li>{@code damageMethod} - Whether damage is applied all at once or spread over time</li>
  *   <li>{@code soundTiming} - When explosion sound is played</li>
  *   <li>{@code soundVolumeSplit} - Whether sound volume is split for multi-stage timing</li>
  *   <li>{@code particleTiming} - When particles are spawned</li>
+ *   <li>{@code particleSplit} - Whether particle count is split proportionally or spawned fully each tick</li>
  *   <li>{@code knockbackTiming} - When knockback is applied to entities</li>
- *   <li>{@code knockbackMethod} - Whether knockback is applied all at once or spread</li>
  * </ul>
  */
 public class ChunkedExplosionsCommand {
@@ -52,12 +51,11 @@ public class ChunkedExplosionsCommand {
                         .then(MaxBlocksPerTickCommand.register(buildContext))
                         .then(MaxQueueSizeCommand.register(buildContext))
                         .then(DamageTimingCommand.register(buildContext))
-                        .then(DamageMethodCommand.register(buildContext))
                         .then(SoundTimingCommand.register(buildContext))
                         .then(SoundVolumeSplitCommand.register(buildContext))
                         .then(ParticleTimingCommand.register(buildContext))
+                        .then(ParticleSplitCommand.register(buildContext))
                         .then(KnockbackTimingCommand.register(buildContext))
-                        .then(KnockbackMethodCommand.register(buildContext))
         );
     }
 }

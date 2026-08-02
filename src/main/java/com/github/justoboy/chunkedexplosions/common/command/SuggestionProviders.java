@@ -33,16 +33,15 @@ public class SuggestionProviders {
     }
 
     /**
-     * Provides suggestions for method modes (SPREAD, ONCE).
+     * Provides suggestions for boolean values.
      * 
      * @param ignoredContext the command context (unused)
      * @param builder the suggestions builder
      * @return a future containing the suggestions
      */
-    public static CompletableFuture<Suggestions> methodSuggestions(CommandContext<CommandSourceStack> ignoredContext, SuggestionsBuilder builder) {
-        for (ModConfig.Method method : ModConfig.Method.values()) {
-            builder.suggest(method.name().toLowerCase());
-        }
+    public static CompletableFuture<Suggestions> boolSuggestions(CommandContext<CommandSourceStack> ignoredContext, SuggestionsBuilder builder) {
+        builder.suggest("true");
+        builder.suggest("false");
         return builder.buildFuture();
     }
 

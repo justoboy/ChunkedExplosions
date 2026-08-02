@@ -50,19 +50,10 @@ public class HelpCommand {
         HelpDetails.register("damageTiming", new HelpDetails(List.of(
             HelpDetails.Section.builder()
                 .title("Timing Options:")
-                .line("  START     - Damage applied when explosion begins")
-                .line("  END       - Damage applied when explosion finishes")
-                .line("  START_END - Damage split between start and end")
-                .line("  SPREAD    - Damage accumulated and applied per tick")
-                .build()
-        )));
-
-        // damageMethod
-        HelpDetails.register("damageMethod", new HelpDetails(List.of(
-            HelpDetails.Section.builder()
-                .title("Method Options:")
-                .line("  SPREAD - Damage distributed over time based on timing")
-                .line("  ONCE   - Damage applied all at once at configured timing")
+                .line("  START     - Damage applied when explosion begins (100%)")
+                .line("  END       - Damage applied when explosion finishes (100%)")
+                .line("  START_END - Damage split between start and end (50% each, 100% total)")
+                .line("  SPREAD    - Damage accumulated proportionally per block, applied once per tick (100% total)")
                 .build()
         )));
 
@@ -70,10 +61,10 @@ public class HelpCommand {
         HelpDetails.register("soundTiming", new HelpDetails(List.of(
             HelpDetails.Section.builder()
                 .title("Timing Options:")
-                .line("  START     - Sound played when explosion begins")
-                .line("  END       - Sound played when explosion finishes")
-                .line("  START_END - Sound split between start and end")
-                .line("  SPREAD    - Sound accumulated and played per tick")
+                .line("  START     - Sound played when explosion begins (100%)")
+                .line("  END       - Sound played when explosion finishes (100%)")
+                .line("  START_END - Sound split between start and end (50% each, 100% total)")
+                .line("  SPREAD    - Sound accumulated proportionally per block, applied once per tick (100% total)")
                 .build()
         )));
 
@@ -81,12 +72,8 @@ public class HelpCommand {
         HelpDetails.register("soundVolumeSplit", new HelpDetails(List.of(
             HelpDetails.Section.builder()
                 .title("Volume Split Options:")
-                .line("  true  - Volume is split between phases")
-                .line("        START_END: Volume split 50/50 between start and end")
-                .line("        SPREAD: Volume distributed across ticks")
-                .line("  false - Full volume played at each phase")
-                .line("        START_END: Full volume at start, full volume at end")
-                .line("        SPREAD: Full volume accumulated and played once per tick")
+                .line("  true  - Volume is split between phases (START_END: 50/50, SPREAD: proportional)")
+                .line("  false - Full volume at each phase (START_END: 100% at start + 100% at end)")
                 .build()
         )));
 
@@ -94,10 +81,19 @@ public class HelpCommand {
         HelpDetails.register("particleTiming", new HelpDetails(List.of(
             HelpDetails.Section.builder()
                 .title("Timing Options:")
-                .line("  START     - Particles shown when explosion begins")
-                .line("  END       - Particles shown when explosion finishes")
-                .line("  START_END - Particles split between start and end")
-                .line("  SPREAD    - Particles accumulated and shown per tick")
+                .line("  START     - Particles shown when explosion begins (100%)")
+                .line("  END       - Particles shown when explosion finishes (100%)")
+                .line("  START_END - Particles split between start and end (50% each, 100% total)")
+                .line("  SPREAD    - Particles accumulated proportionally per block, applied once per tick (100% total)")
+                .build()
+        )));
+
+        // particleSplit - boolean option, not timing
+        HelpDetails.register("particleSplit", new HelpDetails(List.of(
+            HelpDetails.Section.builder()
+                .title("Particle Split Options:")
+                .line("  true  - Particle count split proportionally (SPREAD: proportional to blocks destroyed)")
+                .line("  false - Full particle count each tick (SPREAD: full count every tick that destroys blocks)")
                 .build()
         )));
 
@@ -105,19 +101,10 @@ public class HelpCommand {
         HelpDetails.register("knockbackTiming", new HelpDetails(List.of(
             HelpDetails.Section.builder()
                 .title("Timing Options:")
-                .line("  START     - Knockback applied when explosion begins")
-                .line("  END       - Knockback applied when explosion finishes")
-                .line("  START_END - Knockback split between start and end")
-                .line("  SPREAD    - Knockback accumulated and applied per tick")
-                .build()
-        )));
-
-        // knockbackMethod
-        HelpDetails.register("knockbackMethod", new HelpDetails(List.of(
-            HelpDetails.Section.builder()
-                .title("Method Options:")
-                .line("  SPREAD - Knockback distributed over time based on timing")
-                .line("  ONCE   - Knockback applied all at once at configured timing")
+                .line("  START     - Knockback applied when explosion begins (100%)")
+                .line("  END       - Knockback applied when explosion finishes (100%)")
+                .line("  START_END - Knockback split between start and end (50% each, 100% total)")
+                .line("  SPREAD    - Knockback accumulated proportionally per block, applied once per tick (100% total)")
                 .build()
         )));
     }

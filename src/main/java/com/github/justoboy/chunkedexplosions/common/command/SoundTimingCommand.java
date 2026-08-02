@@ -25,16 +25,16 @@ import net.minecraft.network.chat.Component;
  * 
  * <h2>Timing Modes</h2>
  * <ul>
- *   <li><b>START:</b> Sound is played immediately when the explosion begins</li>
- *   <li><b>END:</b> Sound is played when the explosion finishes processing</li>
- *   <li><b>START_END:</b> Sound is split between START and END phases</li>
- *   <li><b>SPREAD:</b> Sound is accumulated and played once per tick during processing</li>
+ *   <li><b>START:</b> Sound is played immediately when the explosion begins (100%)</li>
+ *   <li><b>END:</b> Sound is played when the explosion finishes processing (100%)</li>
+ *   <li><b>START_END:</b> Sound is split between START and END phases (50% each, 100% total)</li>
+ *   <li><b>SPREAD:</b> Sound is accumulated proportionally per block and played once per tick (100% total)</li>
  * </ul>
  * 
  * <h2>Sound Volume Split</h2>
  * <p>
- * When using START_END or SPREAD timing, the {@code soundVolumeSplit} setting
- * determines whether the sound volume is split between phases.
+ * For START_END and SPREAD timing, volume control is handled by {@code soundVolumeSplit}.
+ * See {@code /chunkedexplosions soundVolumeSplit} for details.
  * </p>
  */
 public class SoundTimingCommand {

@@ -25,11 +25,17 @@ import net.minecraft.network.chat.Component;
  * 
  * <h2>Timing Modes</h2>
  * <ul>
- *   <li><b>START:</b> Particles are spawned immediately when the explosion begins</li>
- *   <li><b>END:</b> Particles are spawned when the explosion finishes processing</li>
- *   <li><b>START_END:</b> Particles are spawned at both START and END phases</li>
- *   <li><b>SPREAD:</b> Particles are accumulated and spawned once per tick during processing</li>
+ *   <li><b>START:</b> Particles are spawned immediately when the explosion begins (100%)</li>
+ *   <li><b>END:</b> Particles are spawned when the explosion finishes processing (100%)</li>
+ *   <li><b>START_END:</b> Particles are split between START and END phases (50% each, 100% total)</li>
+ *   <li><b>SPREAD:</b> Particles are accumulated proportionally per block and spawned once per tick (100% total)</li>
  * </ul>
+ * 
+ * <h2>Particle Split</h2>
+ * <p>
+ * For SPREAD timing, particle count control is handled by {@code particleSplit}.
+ * See {@code /chunkedexplosions particleSplit} for details.
+ * </p>
  * 
  * <h2>Particle Types</h2>
  * <p>

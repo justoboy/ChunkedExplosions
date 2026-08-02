@@ -8,7 +8,6 @@ import net.minecraft.world.phys.Vec3;
 
 public interface IExplosionDuck {
     void chunked_explode();
-    void chunked_update();
     void chunked_finalize();
     
     // Accessor methods for private Explosion fields

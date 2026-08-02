@@ -24,17 +24,11 @@ import net.minecraft.network.chat.Component;
  * 
  * <h2>Timing Modes</h2>
  * <ul>
- *   <li><b>START:</b> All damage is applied immediately when the explosion begins</li>
- *   <li><b>END:</b> All damage is applied when the explosion finishes processing</li>
- *   <li><b>START_END:</b> Damage is split between START and END phases</li>
- *   <li><b>SPREAD:</b> Damage is accumulated and applied once per tick during processing</li>
+ *   <li><b>START:</b> All damage is applied immediately when the explosion begins (100%)</li>
+ *   <li><b>END:</b> All damage is applied when the explosion finishes processing (100%)</li>
+ *   <li><b>START_END:</b> Damage is split between START and END phases (50% each, 100% total)</li>
+ *   <li><b>SPREAD:</b> Damage is accumulated proportionally per block and applied once per tick (100% total)</li>
  * </ul>
- * 
- * <h2>Interaction with Damage Method</h2>
- * <p>
- * When using START_END or SPREAD timing, the {@code damageMethod} setting
- * determines whether damage is applied all at once or spread over time.
- * </p>
  */
 public class DamageTimingCommand {
 
