@@ -461,6 +461,8 @@ public class ExplosionState {
      */
     private void destroyBlock(ServerLevel serverLevel, BlockPos blockPos) {
         blockDestroyer.destroyBlock(serverLevel, blockPos);
+        // Record block if recording is enabled
+        com.github.justoboy.chunkedexplosions.common.command.RecordExplosionCommand.recordBlockDestroyed(blockPos);
     }
 
     // === Entity Effect Methods ===

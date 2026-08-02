@@ -31,7 +31,7 @@ Below is a detailed prompt you can provide to a coding AI:
 
 **Prompt:**
 
-You are tasked with implementing a redesigned explosion processing system for a Minecraft Forge mod. Read the architecture document at [`plans/explosion-architecture-v3.md`](plans/explosion-architecture-v3.md) for complete technical specifications.
+You are tasked with implementing a redesigned explosion processing system for a Minecraft Forge mod. Read the architecture document at [`/explosion-architecture-v3.md`](plans/explosion-architecture-v3.md) for complete technical specifications.
 
 ### Project Context
 - **Mod Name:** Chunked Explosions
