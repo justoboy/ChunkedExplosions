@@ -23,6 +23,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -151,6 +152,9 @@ public class ExplosionState {
      * All immutable data is initialized here; pre-calculation happens later.
      */
     public ExplosionState(Explosion explosion) {
+        LOGGER.info("EXPLOSION_STATE_CONSTRUCTOR: Creating state for explosion at {}, radius {}", 
+                   ((IExplosionDuck) explosion).chunked_getPosition(), 
+                   ((IExplosionDuck) explosion).chunked_getRadius());
         this.originalExplosion = explosion;
         IExplosionDuck duck = (IExplosionDuck) explosion;
         this.level = duck.chunked_getLevel();
@@ -242,11 +246,14 @@ public class ExplosionState {
         // Use SplittableRandom for deterministic iteration
         SplittableRandom random = new SplittableRandom(seed);
 
-        // Iterate over the surface of the 16x16x16 grid
+        // Iterate over the surface of the 16x16x16 grid (matches vanilla exactly)
+        // Vanilla: for(int i = 0; i < 16; ++i) { for(int j = 0; j < 16; ++j) { for(int k = 0; k < 16; ++k) {
+        //          if (i == 0 || i == 15 || j == 0 || j == 15 || k == 0 || k == 15) { ... }}}}
         for (int xIndex = 0; xIndex <= gridSize; xIndex++) {
             for (int yIndex = 0; yIndex <= gridSize; yIndex++) {
                 for (int zIndex = 0; zIndex <= gridSize; zIndex++) {
-                    // Only process surface points (at least one coordinate at boundary)
+                    
+                    // Only process surface points (at least one coordinate at boundary) - matches vanilla
                     if (xIndex == 0 || xIndex == gridSize ||
                         yIndex == 0 || yIndex == gridSize ||
                         zIndex == 0 || zIndex == gridSize) {
@@ -262,7 +269,8 @@ public class ExplosionState {
                                 normalizedY * normalizedY + 
                                 normalizedZ * normalizedZ);
                         
-                        if (distanceFromCenter == 0) continue;
+                        // Skip center point (no direction) - should only happen at exact center
+                        if (distanceFromCenter < 0.0001) continue;
                         
                         normalizedX /= distanceFromCenter;
                         normalizedY /= distanceFromCenter;
@@ -276,27 +284,41 @@ public class ExplosionState {
                         double currentY = position.y;
                         double currentZ = position.z;
                         
-                        for (float stepSize = 0.3f; blastStrength > 0.0f; blastStrength -= 0.22500001f) {
+                        // March along ray in 0.3 block increments (matches vanilla exactly)
+                        // Vanilla: for(float strength = 0.3F; blastStrength > 0.0F; blastStrength -= 0.3F)
+                        for (float stepSize = 0.3f; blastStrength > 0.0f; blastStrength -= 0.3f) {
                             BlockPos blockPos = BlockPos.containing(currentX, currentY, currentZ);
 
                             // Check world bounds
                             if (!level.isInWorldBounds(blockPos)) {
                                 break;
                             }
-
-                            // Get block state and resistance
-                            BlockState blockState = level.getBlockState(blockPos);
-                            float resistance = getBlockExplosionResistance(blockState, blockPos);
                             
-                            // Reduce blast strength by resistance
-                            blastStrength -= (resistance + stepSize) * stepSize;
-
-                            // If blast strength is still positive, add block
-                            if (blastStrength >= 0.0f && !blockState.isAir()) {
+                            // Get block state and fluid state
+                            BlockState blockState = level.getBlockState(blockPos);
+                            FluidState fluidState = level.getFluidState(blockPos);
+                            
+                            // Check if block should be destroyed (matches vanilla logic from ExplosionDamageCalculator)
+                            boolean isAir = blockState.isAir();
+                            boolean fluidEmpty = fluidState.isEmpty();
+                            
+                            if (!isAir && !fluidEmpty) {
+                                // Calculate resistance (max of block and fluid resistance)
+                                float blockResistance = blockState.getExplosionResistance(level, blockPos, originalExplosion);
+                                float fluidResistance = fluidState.getExplosionResistance(level, blockPos, originalExplosion);
+                                float resistance = Math.max(blockResistance, fluidResistance);
+                                
+                                // Reduce blast strength (matches vanilla: (resistance + 0.3F) * 0.3F)
+                                blastStrength -= (resistance + stepSize) * stepSize;
+                            }
+                            
+                            // If blast strength is still positive, add block (matches vanilla: blastStrength > 0.0F)
+                            // Only add non-air blocks (matches vanilla logic)
+                            if (blastStrength > 0.0f && !blockState.isAir()) {
                                 result.add(blockPos);
                             }
 
-                            // Advance ray position
+                            // Advance ray position (matches vanilla: += direction * 0.3)
                             currentX += normalizedX * 0.3;
                             currentY += normalizedY * 0.3;
                             currentZ += normalizedZ * 0.3;
@@ -308,16 +330,6 @@ public class ExplosionState {
 
         return result;
     }
-
-    /**
-      * Gets the explosion resistance of a block state.
-      */
-     private float getBlockExplosionResistance(BlockState blockState, BlockPos blockPos) {
-         if (blockInteraction == Explosion.BlockInteraction.KEEP) {
-             return Float.MAX_VALUE;
-         }
-         return blockState.getExplosionResistance(level, blockPos, originalExplosion);
-     }
 
     /**
      * Pre-calculates entity effects including visibility, damage, and knockback.
@@ -408,8 +420,8 @@ public class ExplosionState {
         int totalBlocks = blocksToDestroy.size();
         this.blocksDestroyedThisTick = 0;
 
-        // Process up to blocksPerExplosionTick blocks
-        while (blocksThisTick < blocksPerExplosionTick && currentBlockIndex < totalBlocks) {
+        // Process up to blocksPerExplosionTick blocks (0 means unlimited)
+        while ((blocksPerExplosionTick == 0 || blocksThisTick < blocksPerExplosionTick) && currentBlockIndex < totalBlocks) {
             // Get the next block to destroy
             BlockPos blockPos = getCurrentBlock();
             if (blockPos == null) {
