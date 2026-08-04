@@ -70,6 +70,8 @@ public class ChunkedExplosionsCommand {
                         .then(RecordExplosionCommand.register(buildContext))
                         .then(CompareExplosionCommand.register(buildContext))
                         .then(BenchmarkExplosionCommand.register(buildContext))
+                        .then(CompareTimingModeExplosionCommand.register(buildContext))
+                        .then(CompareTimingModeExplosionCommand.registerStatusCommand(buildContext))
         );
     }
 }

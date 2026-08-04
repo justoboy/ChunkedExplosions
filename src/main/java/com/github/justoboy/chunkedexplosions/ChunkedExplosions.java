@@ -1,5 +1,6 @@
 package com.github.justoboy.chunkedexplosions;
 
+import com.github.justoboy.chunkedexplosions.common.command.CompareTimingModeExplosionCommand;
 import com.github.justoboy.chunkedexplosions.common.world.level.ExplosionProcessor;
 import com.github.justoboy.chunkedexplosions.core.ModConfig;
 import com.mojang.logging.LogUtils;
@@ -83,6 +84,8 @@ public class ChunkedExplosions {
             for (ServerLevel serverLevel : event.getServer().getAllLevels()) {
                 if (serverLevel != null && !serverLevel.isClientSide()) {
                     getExplosionProcessor().onServerTick(serverLevel);
+                    // Process comparison command test states
+                    CompareTimingModeExplosionCommand.onServerTick(serverLevel);
                 }
             }
         }

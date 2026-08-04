@@ -157,6 +157,70 @@ Run automated explosion benchmarks. Spawns multiple TNT entities to stress-test 
 
 **Note:** This is a simplified benchmark that spawns TNT. Use `/explosionstats` to monitor queue during testing.
 
+#### `/chunkedexplosions comparetimingmodeexplosion [size] [block] [radius]`
+
+Automatically compare block destruction between `blockPerExplosionTick=0` and `blockPerExplosionTick=1` to verify they destroy identical blocks.
+
+**Parameters:**
+- `size`: Cube size (3-20), default: 5
+- `block`: Block type (e.g., `dirt`, `stone`), default: `dirt`
+- `radius`: Explosion radius (1-10), default: 4 (TNT radius)
+
+**Examples:**
+```
+/chunkedexplosions comparetimingmodeexplosion                           # 5x5x5 dirt cube, TNT radius
+/chunkedexplosions comparetimingmodeexplosion 10 stone                  # 10x10x10 stone cube, TNT radius
+/chunkedexplosions comparetimingmodeexplosion 7 dirt 5                  # 7x7x7 dirt cube, radius 5
+```
+
+**Test Process:**
+1. Creates a cube of uniform blocks centered on player position
+2. Sets `blockPerExplosionTick=0`, spawns explosion with fuse=1
+3. Waits ~5 seconds for chunks to process (100 server ticks)
+4. Captures destroyed blocks automatically
+5. Recreates the cube, sets `blockPerExplosionTick=1`, spawns explosion
+6. Waits ~5 seconds, captures destroyed blocks
+7. Compares results and displays match percentage
+
+**Additional Command:**
+- `/chunkedexplosions comparetimingstatus` - Check progress of running test
+
+**Output Example:**
+```
+=== Explosion Timing Mode Comparison ===
+Testing block destruction with blockPerExplosionTick=0 vs blockPerExplosionTick=1
+
+Test parameters:
+  Cube size: 5x5x5
+  Block type: dirt
+  Explosion radius: 4
+  Center: (123, 64, 456)
+
+Step 1: Setting blockPerExplosionTick=0
+  blockPerExplosionTick is now: 0
+Step 2: Creating test cube...
+  Test cube created: 125 blocks
+Step 3: Spawning explosion (blockPerExplosionTick=0)...
+  Explosion spawned at (123, 64, 456) with radius 4
+
+Step 4: Waiting for explosion to complete...
+  This will take approximately 5 seconds.
+  Once complete, the second test will begin automatically.
+  Use '/chunkedexplosions comparetimingstatus' to check progress.
+
+... (after ~5 seconds, second test begins automatically)
+
+=== Comparison Results ===
+  blockPerExplosionTick=0 destroyed: 87 blocks
+  blockPerExplosionTick=1 destroyed: 87 blocks
+  Common blocks: 87
+  Only in test 1 (mode 0): 0
+  Only in test 2 (mode 1): 0
+
+  SUCCESS: Both settings destroyed IDENTICAL blocks!
+  Match: 100%
+```
+
 ---
 
 ## Usage Examples
@@ -212,7 +276,7 @@ All commands are registered under `/chunkedexplosions`:
 - Configuration commands (`explosionsPerTick`, `blocksPerExplosionTick`, etc.)
 - Test commands (`testcube`, `testclear`, `sptestentity`, etc.)
 
-The mod includes 9 test/dev commands total:
+The mod includes 10 test/dev commands total:
 1. `testcube` - Create test environments
 2. `testclear` - Clear test areas
 3. `sptestentity` - Spawn test entities
@@ -222,3 +286,4 @@ The mod includes 9 test/dev commands total:
 7. `recordexplosion` - Record block destruction
 8. `compareexplosion` - Compare results
 9. `benchmarkexplosion` - Stress testing
+10. `comparetimingmodeexplosion` - Compare block destruction between blockPerExplosionTick=0 and blockPerExplosionTick=1
