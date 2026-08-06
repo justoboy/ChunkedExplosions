@@ -54,11 +54,11 @@ You are tasked with implementing a redesigned explosion processing system for a 
 1. Create `ExplosionProcessor` class
     - `awaitingQueue` for pending explosions
     - `activeQueue` for ready-to-process explosions
-2. Implement `tryMoveToActiveQueue()` method
-    - Move explosions from awaiting to active when space available
+2. Implement `tryMoveToActiveQueueForDimension()` method
+    - Move explosions from awaiting to active when space available (per dimension)
     - Trigger pre-calculation during move
-3. Implement `onServerTick()` method
-    - Process active queue each tick
+3. Implement `onServerTick(MinecraftServer)` method
+    - Process all dimensions internally, calling dimension-specific methods
     - Respect `explosionsPerTick`, `blocksPerExplosionTick`, `maxBlocksPerTick` limits
 4. Test: Verify queue behavior with multiple simultaneous explosions
 

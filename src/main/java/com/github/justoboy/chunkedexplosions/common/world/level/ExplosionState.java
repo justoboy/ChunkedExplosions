@@ -232,6 +232,8 @@ public class ExplosionState {
      * @return Set of blocks to destroy
      */
     private Set<BlockPos> performRayCasting() {
+        LOGGER.debug("EXPLOSION_RAYCAST_START: Starting ray-casting for explosion at {}, radius {}", position, radius);
+
         Set<BlockPos> result = Sets.newHashSet();
         int gridSize = 15; // 16x16x16 grid (indices 0-15)
         float gridNormalizationFactor = 2.0f / gridSize;
@@ -328,6 +330,10 @@ public class ExplosionState {
             }
         }
 
+        LOGGER.debug("EXPLOSION_RAYCAST_END: Ray-casting complete for explosion at {}, radius {}. Blocks to destroy: {} blocks", 
+                position, radius, result.size());
+//        LOGGER.debug("EXPLOSION_RAYCAST_BLOCKS: Block positions to destroy: {}", result);
+
         return result;
     }
 
@@ -405,6 +411,9 @@ public class ExplosionState {
      * @return true if all blocks have been destroyed
      */
     public boolean processTick(ServerLevel serverLevel) {
+//        LOGGER.debug("EXPLOSION_TICK_START: Processing tick for explosion at {}, radius {}. Current block index: {}/{}",
+//                position, radius, currentBlockIndex, blocksToDestroy.size());
+
         if (!preCalculationComplete) {
             preCalculate();
         }
@@ -421,6 +430,8 @@ public class ExplosionState {
         this.blocksDestroyedThisTick = 0;
 
         // Process up to blocksPerExplosionTick blocks (0 means unlimited)
+//        LOGGER.debug("EXPLOSION_TICK_LOOP_START: Starting block destruction loop for tick. Blocks to process this tick: {}, blocksPerExplosionTick: {}",
+//                totalBlocks - currentBlockIndex, blocksPerExplosionTick);
         while ((blocksPerExplosionTick == 0 || blocksThisTick < blocksPerExplosionTick) && currentBlockIndex < totalBlocks) {
             // Get the next block to destroy
             BlockPos blockPos = getCurrentBlock();
@@ -433,7 +444,7 @@ public class ExplosionState {
         
             // Accumulate SPREAD timing effects for this block
             accumulateSpreadEffects();
-            
+    
             // Accumulate SPREAD timing particle effects for this block
             accumulateParticleEffects();
         
@@ -443,15 +454,22 @@ public class ExplosionState {
             this.blocksDestroyedThisTick++;
         }
 
+//        LOGGER.debug("EXPLOSION_TICK_LOOP_END: Block destruction loop complete for tick. Blocks destroyed this tick: {}. Total progress: {}/{}",
+//                blocksDestroyedThisTick, blocksDestroyed, totalBlocks);
+
         // Apply SPREAD timing effects (accumulated per tick)
         applySpreadEffects(serverLevel);
 
         // Check if all blocks are destroyed
         if (currentBlockIndex >= totalBlocks) {
+//            LOGGER.debug("EXPLOSION_TICK_COMPLETE: Explosion at {}, radius {} has completed all block destruction. Total blocks destroyed: {}",
+//                    position, radius, blocksDestroyed);
             effectsComplete = true;
             return true;
         }
 
+//        LOGGER.debug("EXPLOSION_TICK_RETURN: Explosion at {}, radius {} continues. Progress: {}/{}",
+//                position, radius, blocksDestroyed, totalBlocks);
         return false;
     }
 
@@ -472,6 +490,8 @@ public class ExplosionState {
      * Destroys a single block using the BlockDestroyer.
      */
     private void destroyBlock(ServerLevel serverLevel, BlockPos blockPos) {
+//        LOGGER.debug("EXPLOSION_BLOCK_DESTROYED: Destroying block at position {} (block destroyed count: {}/{})",
+//                blockPos, blocksDestroyed + 1, blocksToDestroy.size());
         blockDestroyer.destroyBlock(serverLevel, blockPos);
         // Record block if recording is enabled
         com.github.justoboy.chunkedexplosions.common.command.RecordExplosionCommand.recordBlockDestroyed(blockPos);

@@ -2,6 +2,7 @@ package com.github.justoboy.chunkedexplosions.common.world.level;
 
 import com.github.justoboy.chunkedexplosions.core.ModConfig;
 import com.mojang.logging.LogUtils;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
@@ -25,8 +26,8 @@ import java.util.Queue;
  * 
  * Processing Flow:
  * 1. New explosions added to awaiting queue
- * 2. tryMoveToActiveQueue() moves explosions when space available
- * 3. processActiveQueue() handles tick-based block destruction
+ * 2. tryMoveToActiveQueueForDimension() moves explosions when space available (per dimension)
+ * 3. processActiveQueueForDimension() handles tick-based block destruction (per dimension)
  * 4. Completed explosions removed from active queue
  */
 public class ExplosionProcessor {
@@ -84,6 +85,7 @@ public class ExplosionProcessor {
 
     /**
      * Main processing method called each server tick.
+     * Accepts MinecraftServer to iterate over all dimensions internally.
      * 
      * Processing order:
      * 1. Reset blocksDestroyedThisTick counter
@@ -91,7 +93,7 @@ public class ExplosionProcessor {
      * 3. Process all active explosions for this tick
      * 4. Remove completed explosions
      */
-    public void onServerTick(ServerLevel level) {
+    public void onServerTick(MinecraftServer server) {
         if (!initialized) {
             return;
         }
@@ -105,13 +107,14 @@ public class ExplosionProcessor {
         // Update config values for all states
         updateConfig();
 
-        // Try to move explosions from awaiting to active queue
-        tryMoveToActiveQueue(level);
-
-        // Process active queue
-        processActiveQueue(level);
-
-        // Remove completed explosions (done via removeIf in processActiveQueue)
+        // Process all dimensions - iterate over all ServerLevels
+        // CRITICAL: Only process explosions that belong to the current dimension
+        for (ServerLevel serverLevel : server.getAllLevels()) {
+            if (serverLevel != null && !serverLevel.isClientSide()) {
+                tryMoveToActiveQueueForDimension(serverLevel);
+                processActiveQueueForDimension(serverLevel);
+            }
+        }
     }
 
     /**
@@ -123,44 +126,6 @@ public class ExplosionProcessor {
         }
         for (ExplosionState state : awaitingQueue) {
             state.updateConfig();
-        }
-    }
-
-    /**
-     * Moves explosions from the awaiting queue to the active queue when space is available.
-     * Pre-calculates all explosion effects during the move.
-     * 
-     * Logic:
-     * - While (activeQueue.size < explosionsPerTick) AND (!awaitingQueue.isEmpty())
-     *   - Pre-calculate explosion
-     *   - Move to active queue
-     */
-    public void tryMoveToActiveQueue(ServerLevel level) {
-        int maxExplosions = ModConfig.getExplosionsPerTick();
-        
-        // Handle empty awaiting queue
-        if (awaitingQueue.isEmpty()) {
-            return;
-        }
-        
-        while (activeQueue.size() < maxExplosions && !awaitingQueue.isEmpty()) {
-            ExplosionState state = awaitingQueue.peek();
-            if (state == null) {
-                break;
-            }
-
-            // Pre-calculate all explosion effects
-            state.preCalculate();
-
-            // Apply START timing effects
-            applyStartTimingEffects(state, level);
-
-            // Move to active queue
-            awaitingQueue.poll();
-            activeQueue.add(state);
-
-            LOGGER.debug("Moved explosion to active queue: {} active, {} awaiting",
-                    activeQueue.size(), awaitingQueue.size());
         }
     }
 
@@ -183,15 +148,75 @@ public class ExplosionProcessor {
     }
 
     /**
-     * Processes all active explosions for this tick.
+     * Moves explosions from the awaiting queue to the active queue when space is available.
+     * Only processes explosions that belong to the specified dimension.
+     * 
+     * Logic:
+     * - While (activeQueue.size < explosionsPerTick) AND (!awaitingQueue.isEmpty())
+     *   - Check if explosion belongs to this dimension
+     *   - If yes: Pre-calculate explosion, apply START timing effects, move to active queue
+     *   - If no: Skip this explosion (it belongs to a different dimension)
+     * 
+     * @param serverLevel the dimension to process explosions for
+     */
+    private void tryMoveToActiveQueueForDimension(ServerLevel serverLevel) {
+        int maxExplosions = ModConfig.getExplosionsPerTick();
+        
+        // Handle empty awaiting queue
+        if (awaitingQueue.isEmpty()) {
+            return;
+        }
+        
+        // We need to process the queue carefully to skip explosions from other dimensions
+        // Use a temporary queue to hold explosions that don't belong to this dimension
+        Queue<ExplosionState> otherDimensionExplosions = new ArrayDeque<>();
+        
+        while (activeQueue.size() < maxExplosions && !awaitingQueue.isEmpty()) {
+            ExplosionState state = awaitingQueue.poll();
+            if (state == null) {
+                break;
+            }
+            
+            // Check if this explosion belongs to the current dimension
+            if (!state.getLevel().dimension().equals(serverLevel.dimension())) {
+                // This explosion belongs to a different dimension, hold it for later
+                otherDimensionExplosions.add(state);
+                continue;
+            }
+            
+            // Pre-calculate all explosion effects
+            state.preCalculate();
+
+            // Apply START timing effects
+            applyStartTimingEffects(state, serverLevel);
+
+            // Move to active queue
+            activeQueue.add(state);
+
+            LOGGER.debug("Moved explosion to active queue: {} active, {} awaiting",
+                    activeQueue.size(), awaitingQueue.size() + otherDimensionExplosions.size());
+        }
+        
+        // Put back explosions from other dimensions
+        while (!otherDimensionExplosions.isEmpty()) {
+            awaitingQueue.add(otherDimensionExplosions.poll());
+        }
+    }
+
+    /**
+     * Processes all active explosions for this tick that belong to the specified dimension.
      * 
      * Logic:
      * - For each explosion in active queue:
+     *   - Check if explosion belongs to this dimension
+     *   - If no: Skip this explosion
+     *   - If yes: Process explosion normally
      *   - If (blocksDestroyedThisTick >= maxBlocksPerTick) BREAK
-     *   - Process explosion: destroy up to blocksPerExplosionTick blocks
      *   - Mark for removal if complete
+     * 
+     * @param serverLevel the dimension to process explosions for
      */
-    private void processActiveQueue(ServerLevel level) {
+    private void processActiveQueueForDimension(ServerLevel serverLevel) {
         // Handle empty active queue
         if (activeQueue.isEmpty()) {
             return;
@@ -203,6 +228,12 @@ public class ExplosionProcessor {
         Queue<ExplosionState> explosionsToRemove = new ArrayDeque<>();
 
         for (ExplosionState state : activeQueue) {
+            // Check if this explosion belongs to the current dimension
+            if (!state.getLevel().dimension().equals(serverLevel.dimension())) {
+                // This explosion belongs to a different dimension, skip it
+                continue;
+            }
+            
             // Check global block cap
             if (maxBlocksPerTick > 0 && blocksDestroyedThisTick >= maxBlocksPerTick) {
                 break;
@@ -218,7 +249,7 @@ public class ExplosionProcessor {
             int blocksBefore = state.getBlocksDestroyed();
 
             // Process this explosion
-            boolean isComplete = state.processTick(level);
+            boolean isComplete = state.processTick(serverLevel);
 
             // Calculate blocks destroyed this tick for this explosion
             int blocksThisTick = state.getBlocksDestroyed() - blocksBefore;
@@ -226,7 +257,7 @@ public class ExplosionProcessor {
 
             if (isComplete) {
                 // Apply END timing effects
-                applyEndTimingEffects(state, level);
+                applyEndTimingEffects(state, serverLevel);
                 LOGGER.debug("Explosion complete at {}: {} blocks destroyed",
                         state.getPosition(), state.getBlocksDestroyed());
             }

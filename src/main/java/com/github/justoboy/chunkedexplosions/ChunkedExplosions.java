@@ -80,14 +80,14 @@ public class ChunkedExplosions {
                 return;
             }
             
-            // Process all server levels (dimensions)
-            for (ServerLevel serverLevel : event.getServer().getAllLevels()) {
-                if (serverLevel != null && !serverLevel.isClientSide()) {
-                    getExplosionProcessor().onServerTick(serverLevel);
-                    // Process comparison command test states
-                    CompareTimingModeExplosionCommand.onServerTick(serverLevel);
-                }
-            }
+            // 1. CRITICAL FIX: Process global explosion logic exactly ONCE per tick.
+            // Pass the server instance so the processor can iterate over all dimensions internally.
+            // This prevents the 3x tick desync bug where timers decreased 3x faster.
+            getExplosionProcessor().onServerTick(event.getServer());
+
+            // 2. Advance your command test engine exactly ONCE per tick.
+            // Pass the main server instance so your manager can extract the correct dimension dynamically.
+            CompareTimingModeExplosionCommand.onServerTick(event.getServer());
         }
     }
 }

@@ -114,9 +114,9 @@ This document defines the architecture for the redesigned Chunked Explosions mod
 
 **Key Methods:**
 - `onExplosionStart(Explosion)` - Intercept new explosions, add to awaiting queue
-- `onServerTick()` - Main processing loop
-- `tryMoveToActiveQueue()` - Move explosions from awaiting to active
-- `processActiveQueue()` - Process all active explosions for this tick
+- `onServerTick(MinecraftServer)` - Main processing loop (iterates over all dimensions internally)
+- `tryMoveToActiveQueueForDimension(ServerLevel)` - Move explosions from awaiting to active (per dimension)
+- `processActiveQueueForDimension(ServerLevel)` - Process all active explosions for this tick (per dimension)
 
 **State:**
 - `awaitingQueue: Queue<ExplosionState>` - Pending pre-calculation

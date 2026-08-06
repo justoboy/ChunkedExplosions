@@ -10,7 +10,9 @@ import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
@@ -22,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -52,6 +55,7 @@ public class CompareTimingModeExplosionCommand {
         int centerX, centerY, centerZ;
         int originalBlocksPerExplosionTick;
         int ticksToWait;
+        public ResourceKey<Level> targetDimension;
         
         boolean isComplete() {
             return phase == TestPhase.DONE;
@@ -60,7 +64,7 @@ public class CompareTimingModeExplosionCommand {
 
     private enum TestPhase {
         BEFORE_START(60),        
-        CREATE_CUBE_1(5),        
+        CREATE_CUBE_1(20),
         WAIT_FOR_CUBE_1(60),     
         WAIT_FOR_EXPLOSION_1(200), 
         WAIT_FOR_RECREATE(60),   
@@ -94,14 +98,22 @@ public class CompareTimingModeExplosionCommand {
                 .executes(CompareTimingModeExplosionCommand::runComparisonWithDefaults);
     }
 
-    public static void onServerTick(Level level) {
-        if (!(level instanceof ServerLevel serverLevel)) {
-            return;
-        }
+    public static void onServerTick(MinecraftServer server) {
+        // Cleanly process your map using an explicit iterator to prevent ConcurrentModificationExceptions
+        Iterator<Map.Entry<String, TestState>> iterator = activeTests.entrySet().iterator();
 
-        for (Map.Entry<String, TestState> entry : activeTests.entrySet()) {
+        while (iterator.hasNext()) {
+            Map.Entry<String, TestState> entry = iterator.next();
             TestState state = entry.getValue();
-            
+
+            // Dynamically grab the exact level this specific test was started in
+            // Example assumes state stores a ResourceKey<Level> targetDimension property.
+            // Fallback to Overworld if not specified: server.getLevel(Level.OVERWORLD)
+            ServerLevel serverLevel = server.getLevel(state.targetDimension);
+            if (serverLevel == null) {
+                continue;
+            }
+
             if (state.ticksToWait == state.phase.initialTicks) {
                 LOGGER.info("Phase: {} ({} ticks)", state.phase, state.ticksToWait);
             }
@@ -110,7 +122,7 @@ public class CompareTimingModeExplosionCommand {
                 state.ticksToWait--;
                 if (state.ticksToWait <= 0) {
                     LOGGER.info("Cleaning up completed test");
-                    activeTests.remove(entry.getKey());
+                    iterator.remove(); // Safe removal via iterator
                 }
                 continue;
             }
@@ -128,18 +140,19 @@ public class CompareTimingModeExplosionCommand {
             if (state.ticksToWait > 0) {
                 state.ticksToWait--;
                 
+                // CRITICAL: Only transition states if the timer hit exactly zero
                 if (state.ticksToWait <= 0) {
                     if (state.phase == TestPhase.BEFORE_START) {
                         LOGGER.info("Transitioning: BEFORE_START -> CREATE_CUBE_1");
                         state.phase = TestPhase.CREATE_CUBE_1;
-                        state.ticksToWait = 5;
+                        state.ticksToWait = 20;
                     } else if (state.phase == TestPhase.CREATE_CUBE_1) {
                         LOGGER.info("Transitioning: CREATE_CUBE_1 -> WAIT_FOR_CUBE_1");
                         ModConfig.setBlocksPerExplosionTick(0);
                         createTestCube(serverLevel, state.centerX, state.centerY, state.centerZ, state.size, state.blockName);
                         LOGGER.info("First cube spawned");
                         state.phase = TestPhase.WAIT_FOR_CUBE_1;
-                        state.ticksToWait = 60;
+                        state.ticksToWait = 60; // This 60 ticks will now properly be respected next frame
                     } else if (state.phase == TestPhase.WAIT_FOR_CUBE_1) {
                         LOGGER.info("Transitioning: WAIT_FOR_CUBE_1 -> WAIT_FOR_EXPLOSION_1");
                         state.phase = TestPhase.WAIT_FOR_EXPLOSION_1;
@@ -320,6 +333,7 @@ public class CompareTimingModeExplosionCommand {
         state.originalBlocksPerExplosionTick = originalSetting;
         state.phase = TestPhase.BEFORE_START;
         state.ticksToWait = 60;
+        state.targetDimension = level.dimension();
         activeTests.put(testKey, state);
 
         context.getSource().sendSuccess(() -> Component.literal(String.format("IMPORTANT: Step away from position (%d, %d, %d)!", centerX, centerY, centerZ)), true);
@@ -418,6 +432,7 @@ public class CompareTimingModeExplosionCommand {
                 }
             }
         }
+        LOGGER.info("Spawned {}x{}x{} {} cube at {} {} {}", size, size, size, blockName, centerX, centerY, centerZ);
     }
 
     private static BlockState parseBlockState(String blockName) {
