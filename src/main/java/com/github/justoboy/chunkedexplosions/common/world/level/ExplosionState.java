@@ -12,6 +12,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -19,6 +20,7 @@ import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.enchantment.ProtectionEnchantment;
 import net.minecraft.world.level.Explosion;
+import net.minecraft.world.level.ExplosionDamageCalculator;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -30,8 +32,8 @@ import org.slf4j.Logger;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.util.SplittableRandom;
 
 /**
  * Encapsulates all data for a single chunked explosion.
@@ -226,8 +228,8 @@ public class ExplosionState {
     }
 
     /**
-     * Performs deterministic ray-casting using a 16x16x16 grid surface rays algorithm.
-     * This replaces the vanilla ray-casting which used non-deterministic RandomSource.
+     * Performs ray-casting using a 16x16x16 grid surface rays algorithm.
+     * This matches the vanilla Explosion.explode() method exactly.
      * 
      * @return Set of blocks to destroy
      */
@@ -235,40 +237,34 @@ public class ExplosionState {
         LOGGER.debug("EXPLOSION_RAYCAST_START: Starting ray-casting for explosion at {}, radius {}", position, radius);
 
         Set<BlockPos> result = Sets.newHashSet();
-        int gridSize = 15; // 16x16x16 grid (indices 0-15)
-        float gridNormalizationFactor = 2.0f / gridSize;
+        int gridSize = 16; // 16x16x16 grid (indices 0-15)
         
-        // Use deterministic seed: source entity ID XOR position coordinates
-        long seed = (source != null ? source.getId() : 0)
-                     ^ Double.hashCode(position.x)
-                     ^ Double.hashCode(position.y)
-                     ^ Double.hashCode(position.z)
-                     ^ Float.floatToIntBits(radius);
-        
-        // Use SplittableRandom for deterministic iteration
-        SplittableRandom random = new SplittableRandom(seed);
+        // Use the level's random source to match vanilla behavior exactly
+        RandomSource random = this.level.random;
 
         // Iterate over the surface of the 16x16x16 grid (matches vanilla exactly)
-        // Vanilla: for(int i = 0; i < 16; ++i) { for(int j = 0; j < 16; ++j) { for(int k = 0; k < 16; ++k) {
-        //          if (i == 0 || i == 15 || j == 0 || j == 15 || k == 0 || k == 15) { ... }}}}
-        for (int xIndex = 0; xIndex <= gridSize; xIndex++) {
-            for (int yIndex = 0; yIndex <= gridSize; yIndex++) {
-                for (int zIndex = 0; zIndex <= gridSize; zIndex++) {
-                    
+        // Vanilla: for(int j = 0; j < 16; ++j) { for(int k = 0; k < 16; ++k) { for(int l = 0; l < 16; ++l) {
+        //          if (j == 0 || j == 15 || k == 0 || k == 15 || l == 0 || l == 15) { ... }}}
+        for (int xIndex = 0; xIndex < gridSize; xIndex++) {
+            for (int yIndex = 0; yIndex < gridSize; yIndex++) {
+                for (int zIndex = 0; zIndex < gridSize; zIndex++) {
+                  
                     // Only process surface points (at least one coordinate at boundary) - matches vanilla
-                    if (xIndex == 0 || xIndex == gridSize ||
-                        yIndex == 0 || yIndex == gridSize ||
-                        zIndex == 0 || zIndex == gridSize) {
+                    if (xIndex == 0 || xIndex == gridSize - 1 ||
+                        yIndex == 0 || yIndex == gridSize - 1 ||
+                        zIndex == 0 || zIndex == gridSize - 1) {
 
                         // Calculate normalized coordinates within the grid
-                        double normalizedX = xIndex * gridNormalizationFactor - 1.0;
-                        double normalizedY = yIndex * gridNormalizationFactor - 1.0;
-                        double normalizedZ = zIndex * gridNormalizationFactor - 1.0;
+                        // Vanilla: (float)j / 15.0F * 2.0F - 1.0F
+                        double normalizedX = (double)xIndex / 15.0F * 2.0F - 1.0F;
+                        double normalizedY = (double)yIndex / 15.0F * 2.0F - 1.0F;
+                        double normalizedZ = (double)zIndex / 15.0F * 2.0F - 1.0F;
 
                         // Normalize to unit length (direction vector)
+                        // Vanilla: Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2); d0 /= d3; etc.
                         double distanceFromCenter = Math.sqrt(
-                                normalizedX * normalizedX + 
-                                normalizedY * normalizedY + 
+                                normalizedX * normalizedX +
+                                normalizedY * normalizedY +
                                 normalizedZ * normalizedZ);
                         
                         // Skip center point (no direction) - should only happen at exact center
@@ -278,7 +274,8 @@ public class ExplosionState {
                         normalizedY /= distanceFromCenter;
                         normalizedZ /= distanceFromCenter;
 
-                        // Generate deterministic blast strength
+                        // Generate blast strength (matches vanilla exactly)
+                        // Vanilla: this.radius * (0.7F + this.level.random.nextFloat() * 0.6F)
                         float blastStrength = radius * (0.7f + random.nextFloat() * 0.6f);
                         
                         // March ray until blast strength exhausted
@@ -287,36 +284,30 @@ public class ExplosionState {
                         double currentZ = position.z;
                         
                         // March along ray in 0.3 block increments (matches vanilla exactly)
-                        // Vanilla: for(float strength = 0.3F; blastStrength > 0.0F; blastStrength -= 0.3F)
-                        for (float stepSize = 0.3f; blastStrength > 0.0f; blastStrength -= 0.3f) {
+                        // Vanilla: for(float f1 = 0.3F; f > 0.0F; f -= 0.22500001F)
+                        for (float stepSize = 0.3f; blastStrength > 0.0f; blastStrength -= 0.22500001F) {
                             BlockPos blockPos = BlockPos.containing(currentX, currentY, currentZ);
 
-                            // Check world bounds
+                            // Check world bounds (matches vanilla)
                             if (!level.isInWorldBounds(blockPos)) {
                                 break;
                             }
                             
-                            // Get block state and fluid state
+                            // Get block state and fluid state (matches vanilla)
                             BlockState blockState = level.getBlockState(blockPos);
                             FluidState fluidState = level.getFluidState(blockPos);
                             
-                            // Check if block should be destroyed (matches vanilla logic from ExplosionDamageCalculator)
-                            boolean isAir = blockState.isAir();
-                            boolean fluidEmpty = fluidState.isEmpty();
-                            
-                            if (!isAir && !fluidEmpty) {
-                                // Calculate resistance (max of block and fluid resistance)
-                                float blockResistance = blockState.getExplosionResistance(level, blockPos, originalExplosion);
-                                float fluidResistance = fluidState.getExplosionResistance(level, blockPos, originalExplosion);
-                                float resistance = Math.max(blockResistance, fluidResistance);
-                                
-                                // Reduce blast strength (matches vanilla: (resistance + 0.3F) * 0.3F)
-                                blastStrength -= (resistance + stepSize) * stepSize;
+                            // Calculate explosion resistance (matches vanilla ExplosionDamageCalculator)
+                            // Vanilla: Optional<Float> optional = this.damageCalculator.getBlockExplosionResistance(this, this.level, blockpos, blockstate, fluidstate);
+                            Optional<Float> optional = getBlockExplosionResistance(blockState, fluidState, blockPos);
+                            if (optional.isPresent()) {
+                                // Vanilla: f -= (optional.get() + 0.3F) * 0.3F
+                                blastStrength -= (optional.get() + 0.3F) * 0.3F;
                             }
-                            
-                            // If blast strength is still positive, add block (matches vanilla: blastStrength > 0.0F)
-                            // Only add non-air blocks (matches vanilla logic)
-                            if (blastStrength > 0.0f && !blockState.isAir()) {
+
+                            // Check if block should be destroyed (matches vanilla exactly)
+                            // Vanilla: if (f > 0.0F && this.damageCalculator.shouldBlockExplode(this, this.level, blockpos, blockstate, f))
+                            if (blastStrength > 0.0F && shouldBlockExplode(blockState, blastStrength)) {
                                 result.add(blockPos);
                             }
 
@@ -330,11 +321,52 @@ public class ExplosionState {
             }
         }
 
-        LOGGER.debug("EXPLOSION_RAYCAST_END: Ray-casting complete for explosion at {}, radius {}. Blocks to destroy: {} blocks", 
+        LOGGER.debug("EXPLOSION_RAYCAST_END: Ray-casting complete for explosion at {}, radius {}. Blocks to destroy: {} blocks",
                 position, radius, result.size());
 //        LOGGER.debug("EXPLOSION_RAYCAST_BLOCKS: Block positions to destroy: {}", result);
 
         return result;
+    }
+
+    /**
+     * Calculates the explosion resistance of a block, matching vanilla ExplosionDamageCalculator.
+     * Returns the max of block and fluid resistance.
+     */
+    private Optional<Float> getBlockExplosionResistance(BlockState blockState, FluidState fluidState, BlockPos blockPos) {
+        // Get block resistance (matches vanilla ExplosionDamageCalculator)
+        float blockResistance = blockState.getExplosionResistance(level, blockPos, originalExplosion);
+        
+        // Get fluid resistance (matches vanilla ExplosionDamageCalculator)
+        float fluidResistance = fluidState.getExplosionResistance(level, blockPos, originalExplosion);
+        
+        // Return max of both (matches vanilla: Math.max(blockResistance, fluidResistance))
+        float resistance = Math.max(blockResistance, fluidResistance);
+        
+        // Only return if resistance is valid (not infinite - blocks like bedrock have 3000 resistance)
+        if (resistance >= 3000.0F) {
+            return Optional.empty();
+        }
+        
+        return Optional.of(resistance);
+    }
+
+    /**
+     * Determines if a block should be destroyed by the explosion.
+     * This matches vanilla ExplosionDamageCalculator.shouldBlockExplode() behavior.
+     *
+     * @param blockState The block state to check
+     * @param blastStrength The remaining blast strength at this position
+     * @return true if the block should be destroyed
+     */
+    private boolean shouldBlockExplode(BlockState blockState, float blastStrength) {
+        // Vanilla behavior: block is destroyed if blastStrength > 0 and block is not air
+        if (blockState.isAir()) {
+            return false;
+        }
+        
+        // The block should be destroyed if blast strength is still positive
+        // This matches vanilla: if (f > 0.0F && this.damageCalculator.shouldBlockExplode(...))
+        return blastStrength > 0.0F;
     }
 
     /**
