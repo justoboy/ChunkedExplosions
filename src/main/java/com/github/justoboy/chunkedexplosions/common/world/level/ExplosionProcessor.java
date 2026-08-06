@@ -14,8 +14,13 @@ import java.util.Queue;
 /**
  * Orchestrates the dual-queue explosion processing system.
  * 
- * Queue Architecture:
+ * <h2>Overview</h2>
+ * <p>The ExplosionProcessor is the central component that manages all chunked explosions
+ * across all dimensions. It implements a dual-queue architecture to efficiently handle
+ * explosions while maintaining performance limits.</p>
  * 
+ * <h2>Queue Architecture</h2>
+ * <pre>
  *   ┌─────────────────────────┐         ┌─────────────────────────┐
  *   │    AWAITING QUEUE       │ ──────► │     ACTIVE QUEUE        │
  *   │  (preCalcPending)       │         │  (preCalcComplete)      │
@@ -23,12 +28,45 @@ import java.util.Queue;
  *   │  • Not calculated       │         │  • Ready to process     │
  *   │  • FIFO order           │         │  • Being processed      │
  *   └─────────────────────────┘         └─────────────────────────┘
+ * </pre>
  * 
- * Processing Flow:
- * 1. New explosions added to awaiting queue
- * 2. tryMoveToActiveQueueForDimension() moves explosions when space available (per dimension)
- * 3. processActiveQueueForDimension() handles tick-based block destruction (per dimension)
- * 4. Completed explosions removed from active queue
+ * <h2>Processing Flow</h2>
+ * <ol>
+ *   <li><strong>Add Explosion:</strong> When a vanilla explosion is intercepted,
+ *       it's converted to an ExplosionState and added to the awaiting queue.</li>
+ *   <li><strong>Move to Active:</strong> Each tick, explosions are moved from awaiting
+ *       to active queue when space is available (limited by explosionsPerTick).</li>
+ *   <li><strong>Pre-calculate:</strong> Before moving to active queue, the explosion
+ *       is pre-calculated (ray-casting and entity effects).</li>
+ *   <li><strong>Apply START Effects:</strong> START timing effects are applied
+ *       when explosion enters active queue.</li>
+ *   <li><strong>Process Tick:</strong> Each tick, active explosions process their
+ *       block destruction (limited by blocksPerExplosionTick and maxBlocksPerTick).</li>
+ *   <li><strong>Apply SPREAD Effects:</strong> SPREAD timing effects are applied
+ *       once per tick after block destruction.</li>
+ *   <li><strong>Complete:</strong> When all blocks are destroyed, END timing effects
+ *       are applied and the explosion is removed from the queue.</li>
+ * </ol>
+ * 
+ * <h2>Per-Dimension Processing</h2>
+ * <p>The processor iterates over all ServerLevels (dimensions) and processes only
+ * explosions that belong to each specific dimension. This prevents cross-dimensional
+ * desync issues where explosions in one dimension could affect processing in another.</p>
+ * 
+ * <h2>Performance Controls</h2>
+ * <ul>
+ *   <li><strong>explosionsPerTick:</strong> Limits how many explosions can move from
+ *       awaiting to active queue per tick.</li>
+ *   <li><strong>blocksPerExplosionTick:</strong> Limits how many blocks each explosion
+ *       can destroy per tick.</li>
+ *   <li><strong>maxBlocksPerTick:</strong> Global limit on blocks destroyed per tick
+ *       across all explosions.</li>
+ *   <li><strong>maxQueueSize:</strong> Maximum number of explosions that can be queued.</li>
+ * </ul>
+ * 
+ * @author justoboy
+ * @see ExplosionState
+ * @see ModConfig
  */
 public class ExplosionProcessor {
 
@@ -129,7 +167,7 @@ public class ExplosionProcessor {
         }
     }
 
-    /**
+    /**+
      * Applies START timing effects for an explosion.
      * This includes damage, knockback, sound, and particles based on config.
      */
