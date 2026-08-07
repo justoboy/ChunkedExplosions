@@ -1,6 +1,5 @@
 package com.github.justoboy.chunkedexplosions.common.command;
 
-import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.ArgumentBuilder;
@@ -8,6 +7,7 @@ import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.coordinates.Vec3Argument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -15,6 +15,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Command to create test environments with uniform blocks.
@@ -22,20 +23,17 @@ import net.minecraft.server.level.ServerLevel;
 public class TestCubeCommand {
 
     static {
-        CommandComments.addComment("testcube", "Create a cube of uniform blocks. Usage: testcube <size> <block> [x] [y] [z]");
+        CommandComments.addComment("testcube", "Create a cube of uniform blocks. Usage: testcube <size> <block> [position]");
     }
 
     public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext buildContext) {
         return Commands.literal("testcube")
                 .then(Commands.argument("size", IntegerArgumentType.integer(1, 100))
                         .then(Commands.argument("block", StringArgumentType.word())
+                                .suggests(SuggestionProviders::blockSuggestions)
                                 .executes(TestCubeCommand::createCubeAtPlayer)
-                                .then(Commands.argument("x", DoubleArgumentType.doubleArg())
-                                        .then(Commands.argument("y", DoubleArgumentType.doubleArg())
-                                                .then(Commands.argument("z", DoubleArgumentType.doubleArg())
-                                                        .executes(TestCubeCommand::createCubeAtPos)
-                                                )
-                                        )
+                                .then(Commands.argument("position", Vec3Argument.vec3())
+                                        .executes(TestCubeCommand::createCubeAtPos)
                                 )
                         )
                 );
@@ -51,10 +49,8 @@ public class TestCubeCommand {
     private static int createCubeAtPos(CommandContext<CommandSourceStack> context) {
         int size = IntegerArgumentType.getInteger(context, "size");
         String blockName = StringArgumentType.getString(context, "block");
-        double x = DoubleArgumentType.getDouble(context, "x");
-        double y = DoubleArgumentType.getDouble(context, "y");
-        double z = DoubleArgumentType.getDouble(context, "z");
-        return createCube(context, size, blockName, x, y, z);
+        Vec3 pos = Vec3Argument.getVec3(context, "position");
+        return createCube(context, size, blockName, pos.x, pos.y, pos.z);
     }
 
     private static BlockState parseBlockState(String blockName) {

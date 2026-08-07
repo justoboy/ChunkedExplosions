@@ -6,49 +6,61 @@ import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.coordinates.Vec3Argument;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.entity.item.PrimedTnt;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.item.PrimedTnt;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Command to run automated explosion benchmarks.
+ * Usage: benchmarkexplosion <iterations> [position]
  */
 public class BenchmarkExplosionCommand {
 
     static {
-        CommandComments.addComment("benchmarkexplosion", "Run explosion benchmark. Usage: benchmarkexplosion <iterations>");
+        CommandComments.addComment("benchmarkexplosion", "Run explosion benchmark. Usage: benchmarkexplosion <iterations> [position]");
     }
 
     public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext buildContext) {
         return Commands.literal("benchmarkexplosion")
                 .then(Commands.argument("iterations", IntegerArgumentType.integer(1, 100))
+                        .then(Commands.argument("position", Vec3Argument.vec3())
+                                .executes(BenchmarkExplosionCommand::runBenchmarkAtPos)
+                        )
                         .executes(BenchmarkExplosionCommand::runBenchmark));
     }
 
     private static int runBenchmark(CommandContext<CommandSourceStack> context) {
         int iterations = IntegerArgumentType.getInteger(context, "iterations");
+        Vec3 pos = context.getSource().getPosition();
+        return runBenchmarkAtPosition(context, iterations, pos);
+    }
+
+    private static int runBenchmarkAtPos(CommandContext<CommandSourceStack> context) {
+        int iterations = IntegerArgumentType.getInteger(context, "iterations");
+        Vec3 pos = Vec3Argument.getVec3(context, "position");
+        return runBenchmarkAtPosition(context, iterations, pos);
+    }
+
+    private static int runBenchmarkAtPosition(CommandContext<CommandSourceStack> context, int iterations, Vec3 pos) {
         ServerLevel level = context.getSource().getLevel();
 
         context.getSource().sendSuccess(() -> Component.literal("=== Explosion Benchmark ==="), false);
         context.getSource().sendSuccess(() -> Component.literal("Running %d iterations...".formatted(iterations)), false);
         context.getSource().sendSuccess(() -> Component.literal(""), false);
 
-        context.getSource().sendSuccess(() -> Component.literal("Spawning TNT at (%.0f, %.0f, %.0f)".formatted(
-                context.getSource().getPosition().x,
-                context.getSource().getPosition().y,
-                context.getSource().getPosition().z
-        )), false);
+        context.getSource().sendSuccess(() -> Component.literal("Spawning TNT at (%.0f, %.0f, %.0f)".formatted(pos.x, pos.y, pos.z)), false);
         context.getSource().sendSuccess(() -> Component.literal(""), false);
         context.getSource().sendSuccess(() -> Component.literal(
                 "Note: Full benchmark requires tracking explosion completion. " +
                 "Use /chunkedexplosions explosionstats to monitor queue during testing."
         ), false);
 
-        @SuppressWarnings("unchecked")
-        EntityType<PrimedTnt> entityType = (EntityType<PrimedTnt>) (EntityType<?>) BuiltInRegistries.ENTITY_TYPE.get(
+        EntityType<?> entityType = BuiltInRegistries.ENTITY_TYPE.get(
                 ResourceLocation.fromNamespaceAndPath("minecraft", "primed_tnt"));
         
         if (entityType == null) {
@@ -57,12 +69,8 @@ public class BenchmarkExplosionCommand {
         }
         
         for (int i = 0; i < iterations; i++) {
-            PrimedTnt tnt = new PrimedTnt(entityType, level);
-            tnt.setPos(
-                context.getSource().getPosition().x + (i * 2),
-                context.getSource().getPosition().y + 1,
-                context.getSource().getPosition().z
-            );
+            PrimedTnt tnt = new PrimedTnt((EntityType<PrimedTnt>) entityType, level);
+            tnt.setPos(pos.x + (i * 2), pos.y + 1, pos.z);
             level.addFreshEntity(tnt);
         }
 

@@ -742,7 +742,6 @@ Within classes:
 | blocksPerExplosionTick | int | 16 | 0-MAX |
 | explosionsPerTick | int | 1024 | 0-MAX |
 | maxBlocksPerTick | int | 16384 | 0-MAX |
-| maxQueueSize | int | 10000 | 0-MAX |
 | cascadeSuppression | boolean | false | - |
 | damageTiming | Timing | SPREAD | START/END/START_END/SPREAD |
 | soundTiming | Timing | SPREAD | START/END/START_END/SPREAD |

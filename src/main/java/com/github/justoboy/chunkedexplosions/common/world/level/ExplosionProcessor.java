@@ -61,7 +61,6 @@ import java.util.Queue;
  *       can destroy per tick.</li>
  *   <li><strong>maxBlocksPerTick:</strong> Global limit on blocks destroyed per tick
  *       across all explosions.</li>
- *   <li><strong>maxQueueSize:</strong> Maximum number of explosions that can be queued.</li>
  * </ul>
  * 
  * @author justoboy
@@ -84,9 +83,6 @@ public class ExplosionProcessor {
     /** Whether the processor has been initialized */
     private boolean initialized = false;
 
-    /** Counter for rejected explosions due to queue overflow */
-    private int rejectedExplosionsCount;
-
     public ExplosionProcessor() {
         this.initialized = true;
         this.blocksDestroyedThisTick = 0;
@@ -103,15 +99,6 @@ public class ExplosionProcessor {
     public ExplosionState addExplosion(ServerLevel level, Explosion explosion) {
         if (!initialized) {
             LOGGER.warn("Cannot add explosion to uninitialized processor");
-            return null;
-        }
-
-        // Check for queue overflow
-        int maxQueueSize = ModConfig.getMaxQueueSize();
-        if (maxQueueSize > 0 && awaitingQueue.size() >= maxQueueSize) {
-            rejectedExplosionsCount++;
-            LOGGER.warn("Queue overflow: rejected explosion (queue size: {}, max: {}). Rejected this tick: {}",
-                    awaitingQueue.size(), maxQueueSize, rejectedExplosionsCount);
             return null;
         }
 
@@ -139,9 +126,6 @@ public class ExplosionProcessor {
         // Reset the block counter for this tick
         blocksDestroyedThisTick = 0;
 
-        // Reset rejected explosions counter for this tick
-        rejectedExplosionsCount = 0;
-
         // Update config values for all states
         updateConfig();
 
@@ -167,7 +151,7 @@ public class ExplosionProcessor {
         }
     }
 
-    /**+
+    /**
      * Applies START timing effects for an explosion.
      * This includes damage, knockback, sound, and particles based on config.
      */

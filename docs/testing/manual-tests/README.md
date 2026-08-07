@@ -122,7 +122,6 @@ The following commands have been implemented to assist with testing. All command
 | Command | Description |
 |-- |--|
 | `testcube <size> <block>` | Create a uniform block cube for testing |
-| `testclear <size> [block]` | Clear a region for fresh testing |
 | `sptestentity <entity> <count> <radius> [angle]` | Spawn test entities with NoAI:1b automatically |
 
 ### Explosion Testing Commands
@@ -133,57 +132,43 @@ The following commands have been implemented to assist with testing. All command
 | `explosionstats` | Show current queue statistics |
 | `benchmarkexplosion <iterations>` | Stress test by spawning multiple TNT |
 
-### Entity Damage Commands
+### Entity Effect Testing Commands
 
 | Command | Description |
 |-- |--|
-| `testentitydamage` | Report entity health for damage verification |
-
-### Block Destruction Commands
-
-| Command | Description |
-|-- |--|
-| `recordexplosion <start|stop|report|clear>` | Record blocks destroyed by explosions |
-| `compareexplosion <baseline|history|comparebaseline>` | Compare explosion results |
+| `sptestentity` | Spawn test entities for damage/knockback testing |
+| `spawnexplosion` | Trigger test explosions with optional position |
 
 ### Example Usage
 
 ```bash
 # Create test environment
-/chunkedexplosions testclear 50
 /chunkedexplosions testcube 30 stone
 
 # Spawn test entities in a circle (all with NoAI:1b)
 /chunkedexplosions sptestentity iron_golem 8 4 45
 
-# Record explosion results
-/chunkedexplosions recordexplosion start
-# Prime TNT
-/chunkedexplosions recordexplosion stop
-
-# View results and check entity damage
-/chunkedexplosions recordexplosion report
-/chunkedexplosions testentitydamage
+# Trigger test explosion at player position
+/chunkedexplosions spawnexplosion
 
 # Monitor queue during stress testing
 /chunkedexplosions explosionstats
+
+# Run stress test with multiple TNT
+/chunkedexplosions benchmarkexplosion 100
 ```
 
 All entities spawned via `/chunkedexplosions sptestentity` automatically have `NoAI:1b` applied, ensuring they stay perfectly still for accurate damage/knockback testing.
 
 ## Implemented Dev Commands
 
-The following 9 dev commands are fully implemented:
+The following 5 dev commands are fully implemented:
 
 1. `testcube` - Create test environments
-2. `testclear` - Clear test areas
-3. `sptestentity` - Spawn stationary test entities (auto NoAI:1b)
-4. `spawnexplosion` - Trigger test explosions
-5. `explosionstats` - Monitor queue
-6. `testentitydamage` - Check entity health
-7. `recordexplosion` - Record block destruction
-8. `compareexplosion` - Compare results
-9. `benchmarkexplosion` - Stress testing
+2. `sptestentity` - Spawn stationary test entities (auto NoAI:1b)
+3. `spawnexplosion` - Trigger test explosions
+4. `explosionstats` - Monitor queue
+5. `benchmarkexplosion` - Stress testing
 
 ## Next Steps
 

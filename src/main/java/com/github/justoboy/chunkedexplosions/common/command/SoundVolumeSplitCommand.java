@@ -60,6 +60,7 @@ public class SoundVolumeSplitCommand {
     public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext ignoredBuildContext) {
         return Commands.literal("soundVolumeSplit")
                 .then(Commands.argument("value", BoolArgumentType.bool())
+                        .suggests(SuggestionProviders::boolSuggestions)
                         .executes(context -> setValue(context, BoolArgumentType.getBool(context, "value"))))
                 .executes(SoundVolumeSplitCommand::sendValueMessage);
     }

@@ -1,6 +1,5 @@
 package com.github.justoboy.chunkedexplosions;
 
-import com.github.justoboy.chunkedexplosions.common.command.CompareTimingModeExplosionCommand;
 import com.github.justoboy.chunkedexplosions.common.world.level.ExplosionProcessor;
 import com.github.justoboy.chunkedexplosions.core.ModConfig;
 import com.mojang.logging.LogUtils;
@@ -169,7 +168,6 @@ public class ChunkedExplosions {
      * <p>This method is called every server tick and performs:</p>
      * <ol>
      *   <li>Processing all queued explosions across all dimensions</li>
-     *   <li>Advancing the test command engine for comparison testing</li>
      * </ol>
      * 
      * <p><strong>Important:</strong> This only runs on the server tick END phase
@@ -177,7 +175,6 @@ public class ChunkedExplosions {
      * 
      * @param event The server tick event from Forge
      * @see ExplosionProcessor#onServerTick(net.minecraft.server.MinecraftServer)
-     * @see CompareTimingModeExplosionCommand#onServerTick(net.minecraft.server.MinecraftServer)
      */
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
@@ -188,15 +185,10 @@ public class ChunkedExplosions {
                 return;
             }
             
-            // 1. Process global explosion logic exactly ONCE per tick.
+            // Process global explosion logic exactly ONCE per tick.
             // Pass the server instance so the processor can iterate over all dimensions internally.
             // This prevents the 3x tick desync bug where timers decreased 3x faster.
             getExplosionProcessor().onServerTick(event.getServer());
-
-            // 2. Advance the command test engine exactly ONCE per tick.
-            // Pass the main server instance so the manager can extract the correct dimension dynamically.
-            // This is used for the compare timing mode testing system.
-            CompareTimingModeExplosionCommand.onServerTick(event.getServer());
         }
     }
 }

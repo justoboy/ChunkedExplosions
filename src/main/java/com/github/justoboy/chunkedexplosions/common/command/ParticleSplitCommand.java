@@ -58,6 +58,7 @@ public class ParticleSplitCommand {
     public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext ignoredBuildContext) {
         return Commands.literal("particleSplit")
                 .then(Commands.argument("value", BoolArgumentType.bool())
+                        .suggests(SuggestionProviders::boolSuggestions)
                         .executes(context -> setValue(context, BoolArgumentType.getBool(context, "value"))))
                 .executes(ParticleSplitCommand::sendValueMessage);
     }

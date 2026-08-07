@@ -68,8 +68,6 @@ public enum Timing {
 | `setExplosionsPerTick(int)` | `void` | Set explosions per tick |
 | `getMaxBlocksPerTick()` | `int` | Get max blocks per tick |
 | `setMaxBlocksPerTick(int)` | `void` | Set max blocks per tick |
-| `getMaxQueueSize()` | `int` | Get max queue size |
-| `setMaxQueueSize(int)` | `void` | Set max queue size |
 | `getDamageTiming()` | `Timing` | Get damage timing mode |
 | `setDamageTiming(Timing)` | `void` | Set damage timing mode |
 | `getSoundTiming()` | `Timing` | Get sound timing mode |
@@ -255,7 +253,6 @@ All timing commands follow the same pattern:
 | [`ExplosionsPerTickCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/ExplosionsPerTickCommand.java) | Configure explosions per tick |
 | [`BlocksPerExplosionTickCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/BlocksPerExplosionTickCommand.java) | Configure blocks per explosion per tick |
 | [`MaxBlocksPerTickCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/MaxBlocksPerTickCommand.java) | Configure global max blocks per tick |
-| [`MaxQueueSizeCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/MaxQueueSizeCommand.java) | Configure max queue size |
 
 ### Boolean Option Commands
 
@@ -270,19 +267,14 @@ All timing commands follow the same pattern:
 |---------|-------------|
 | [`SpawnExplosionCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/SpawnExplosionCommand.java) | Spawn test explosion |
 | [`TestCubeCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/TestCubeCommand.java) | Create test cube environment |
-| [`TestClearCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/TestClearCommand.java) | Clear test area |
 | [`ExplosionStatsCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/ExplosionStatsCommand.java) | Show queue statistics |
-| [`SpawnTestEntityCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/SpawnTestEntityCommand.java) | Spawn test entities |
-| [`TestEntityDamageCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/TestEntityDamageCommand.java) | Test entity damage calculations |
+| [`SpawnTestEntityCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/SpawnTestEntityCommand.java) | Spawn test entities and report damage |
 
 ### Benchmark Commands
 
 | Command | Description |
 |---------|-------------|
 | [`BenchmarkExplosionCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/BenchmarkExplosionCommand.java) | Run benchmark tests |
-| [`CompareExplosionCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/CompareExplosionCommand.java) | Compare explosion behaviors |
-| [`CompareTimingModeExplosionCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/CompareTimingModeExplosionCommand.java) | Compare timing modes |
-| [`RecordExplosionCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/RecordExplosionCommand.java) | Record explosion data |
 
 ---
 

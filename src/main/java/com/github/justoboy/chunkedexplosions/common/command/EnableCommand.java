@@ -38,6 +38,7 @@ public class EnableCommand {
     public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext ignoredBuildContext) {
         return Commands.literal("enable")
                 .then(Commands.argument("value", BoolArgumentType.bool())
+                        .suggests(SuggestionProviders::boolSuggestions)
                         .executes(context -> setValue(context, BoolArgumentType.getBool(context, "value"))))
         .executes(EnableCommand::sendValueMessage);
     }

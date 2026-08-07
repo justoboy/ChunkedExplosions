@@ -525,8 +525,6 @@ public class ExplosionState {
 //        LOGGER.debug("EXPLOSION_BLOCK_DESTROYED: Destroying block at position {} (block destroyed count: {}/{})",
 //                blockPos, blocksDestroyed + 1, blocksToDestroy.size());
         blockDestroyer.destroyBlock(serverLevel, blockPos);
-        // Record block if recording is enabled
-        com.github.justoboy.chunkedexplosions.common.command.RecordExplosionCommand.recordBlockDestroyed(blockPos);
     }
 
     // === Entity Effect Methods ===

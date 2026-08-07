@@ -5,6 +5,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -13,14 +14,14 @@ import java.util.concurrent.CompletableFuture;
  * Provides command suggestions for the chunked explosions mod.
  * <p>
  * This class contains suggestion providers for various command arguments,
- * including timing modes, method modes, and command names.
+ * including timing modes, method modes, command names, entity types, and block types.
  * </p>
  */
 public class SuggestionProviders {
 
     /**
      * Provides suggestions for timing modes (START, END, START_END, SPREAD).
-     * 
+     *
      * @param ignoredContext the command context (unused)
      * @param builder the suggestions builder
      * @return a future containing the suggestions
@@ -34,7 +35,7 @@ public class SuggestionProviders {
 
     /**
      * Provides suggestions for boolean values.
-     * 
+     *
      * @param ignoredContext the command context (unused)
      * @param builder the suggestions builder
      * @return a future containing the suggestions
@@ -47,7 +48,7 @@ public class SuggestionProviders {
 
     /**
      * Provides suggestions for integer values commonly used in the mod.
-     * 
+     *
      * @param ignoredContext the command context (unused)
      * @param builder the suggestions builder
      * @return a future containing the suggestions
@@ -63,7 +64,7 @@ public class SuggestionProviders {
 
     /**
      * Provides suggestions for command names available in the mod.
-     * 
+     *
      * @param ignoredContext the command context (unused)
      * @param builder the suggestions builder
      * @return a future containing the suggestions
@@ -71,6 +72,40 @@ public class SuggestionProviders {
     public static CompletableFuture<Suggestions> commandSuggestions(CommandContext<CommandSourceStack> ignoredContext, SuggestionsBuilder builder) {
         for (String command : Map.copyOf(CommandComments.COMMAND_COMMENTS).keySet()) {
             builder.suggest(command);
+        }
+        return builder.buildFuture();
+    }
+
+    /**
+     * Provides suggestions for entity types.
+     * Queries the registry directly to ensure fresh suggestions that include
+     * entities added by datapacks or other mods at runtime.
+     *
+     * @param context the command context
+     * @param builder the suggestions builder
+     * @return a future containing the suggestions
+     */
+    public static CompletableFuture<Suggestions> entitySuggestions(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        for (var entityType : BuiltInRegistries.ENTITY_TYPE) {
+            String key = BuiltInRegistries.ENTITY_TYPE.getKey(entityType).toString();
+            builder.suggest(key);
+        }
+        return builder.buildFuture();
+    }
+
+    /**
+     * Provides suggestions for block types.
+     * Queries the registry directly to ensure fresh suggestions that include
+     * blocks added by datapacks or other mods at runtime.
+     *
+     * @param context the command context
+     * @param builder the suggestions builder
+     * @return a future containing the suggestions
+     */
+    public static CompletableFuture<Suggestions> blockSuggestions(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        for (var block : BuiltInRegistries.BLOCK) {
+            String key = BuiltInRegistries.BLOCK.getKey(block).toString();
+            builder.suggest(key);
         }
         return builder.buildFuture();
     }

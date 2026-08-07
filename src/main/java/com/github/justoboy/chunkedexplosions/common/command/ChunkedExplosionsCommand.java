@@ -18,7 +18,6 @@ import net.minecraft.commands.Commands;
  *   <li>{@code explosionsPerTick} - Maximum explosions processed per tick</li>
  *   <li>{@code blocksPerExplosionTick} - Maximum blocks destroyed per tick per explosion</li>
  *   <li>{@code maxBlocksPerTick} - Global maximum blocks destroyed per tick</li>
- *   <li>{@code maxQueueSize} - Maximum pending explosions in queue</li>
  *   <li>{@code damageTiming} - When damage is applied to entities</li>
  *   <li>{@code soundTiming} - When explosion sound is played</li>
  *   <li>{@code soundVolumeSplit} - Whether sound volume is split for multi-stage timing</li>
@@ -31,7 +30,6 @@ import net.minecraft.commands.Commands;
  * <ul>
  *   <li>{@code spawnexplosion} - Spawn deterministic explosion for testing</li>
  *   <li>{@code testcube} - Create uniform block cube for testing</li>
- *   <li>{@code testclear} - Clear test area</li>
  *   <li>{@code explosionstats} - Show queue statistics</li>
  *   <li>{@code sptestentity} - Spawn test entities at precise positions</li>
  * </ul>
@@ -53,7 +51,6 @@ public class ChunkedExplosionsCommand {
                         .then(ExplosionsPerTickCommand.register(buildContext))
                         .then(BlocksPerExplosionTickCommand.register(buildContext))
                         .then(MaxBlocksPerTickCommand.register(buildContext))
-                        .then(MaxQueueSizeCommand.register(buildContext))
                         .then(DamageTimingCommand.register(buildContext))
                         .then(SoundTimingCommand.register(buildContext))
                         .then(SoundVolumeSplitCommand.register(buildContext))
@@ -63,15 +60,9 @@ public class ChunkedExplosionsCommand {
                         // Test commands
                         .then(SpawnExplosionCommand.register(buildContext))
                         .then(TestCubeCommand.register(buildContext))
-                        .then(TestClearCommand.register(buildContext))
                         .then(ExplosionStatsCommand.register(buildContext))
                         .then(SpawnTestEntityCommand.register(buildContext))
-                        .then(TestEntityDamageCommand.register(buildContext))
-                        .then(RecordExplosionCommand.register(buildContext))
-                        .then(CompareExplosionCommand.register(buildContext))
                         .then(BenchmarkExplosionCommand.register(buildContext))
-                        .then(CompareTimingModeExplosionCommand.register(buildContext))
-                        .then(CompareTimingModeExplosionCommand.registerStatusCommand(buildContext))
         );
     }
 }

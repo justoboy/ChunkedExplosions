@@ -79,9 +79,6 @@ public class ModConfig {
         /** Global maximum blocks destroyed per tick across all explosions */
         public final ForgeConfigSpec.ConfigValue<Integer> maxBlocksPerTick;
         
-        /** Maximum number of explosions that can be queued */
-        public final ForgeConfigSpec.ConfigValue<Integer> maxQueueSize;
-        
         /** Whether to suppress chain reactions from chunked explosions */
         public final ForgeConfigSpec.BooleanValue cascadeSuppression;
         
@@ -122,9 +119,6 @@ public class ModConfig {
                     .defineInRange("explosionsPerTick", 1024, 0, Integer.MAX_VALUE);
             maxBlocksPerTick = builder.comment(CommandComments.getComment("maxBlocksPerTick"))
                     .defineInRange("maxBlocksPerTick", 16384, 0, Integer.MAX_VALUE);
-            maxQueueSize = builder.comment(CommandComments.getComment("maxQueueSize"))
-                    .defineInRange("maxQueueSize", 10000, 0, Integer.MAX_VALUE);
-            
             // Feature settings
             cascadeSuppression = builder.comment(CommandComments.getComment("cascadeSuppression"))
                     .define("cascadeSuppression", false);
@@ -244,22 +238,6 @@ public class ModConfig {
      */
     public static void setMaxBlocksPerTick(int value) { 
         COMMON_CONFIG.maxBlocksPerTick.set(value); 
-    }
-
-    /**
-     * Gets the maximum number of explosions that can be queued.
-     * @return max queue size (0 = unlimited)
-     */
-    public static int getMaxQueueSize() { 
-        return COMMON_CONFIG.maxQueueSize.get(); 
-    }
-    
-    /**
-     * Sets the maximum number of explosions that can be queued.
-     * @param value max queue size (0 = unlimited)
-     */
-    public static void setMaxQueueSize(int value) { 
-        COMMON_CONFIG.maxQueueSize.set(value); 
     }
 
     /**
