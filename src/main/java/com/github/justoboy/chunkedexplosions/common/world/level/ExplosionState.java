@@ -409,7 +409,8 @@ public class ExplosionState {
             double impactFactor = (1.0 - distanceToEntity) * visibility;
 
             // Calculate damage
-            float damage = (float) ((int) ((impactFactor * impactFactor + impactFactor) / 2.0 * 7.0 * radius + 1));
+            // Vanilla formula uses radius * 2.0F (stored in f2)
+            float damage = (float) ((int) ((impactFactor * impactFactor + impactFactor) / 2.0 * 7.0 * (radius * 2.0) + 1));
 
             // Calculate knockback vector
             double deltaX = entity.getX() - position.x;
@@ -553,6 +554,10 @@ public class ExplosionState {
           } else if (damageTiming == ModConfig.Timing.SPREAD) {
               if (!accumulatedDamage.isEmpty()) {
                   applySpreadDamage(serverLevel);
+              } else if (!affectedEntities.isEmpty()) {
+                  // No blocks were destroyed but entities were detected (e.g., explosion in air)
+                  // Apply full damage to all affected entities
+                  applyAllDamage(1.0F);
               }
           }
       }
@@ -669,26 +674,30 @@ public class ExplosionState {
         }
     }
  
-     /**
-      * Applies accumulated damage to entities for SPREAD timing.
-      * Damage is accumulated per block destroyed and applied once per tick.
-      */
-     private void applySpreadDamage(ServerLevel serverLevel) {
-         DamageSource damageSource = ((IExplosionDuck) originalExplosion).chunked_getDamageSource();
-         
-         for (Map.Entry<Entity, Float> entry : accumulatedDamage.entrySet()) {
-             Entity entity = entry.getKey();
-             float accumulated = entry.getValue();
-             
-             if (entity.isAlive() && !damagedEntities.contains(entity)) {
-                 entity.hurt(damageSource, accumulated);
-                 damagedEntities.add(entity);
-             }
-         }
-         
-         // Clear accumulated damage for next tick
-         accumulatedDamage.clear();
-     }
+      /**
+       * Applies accumulated damage to entities for SPREAD timing.
+       * Damage is accumulated per block destroyed and applied once per tick.
+       */
+      private void applySpreadDamage(ServerLevel serverLevel) {
+          DamageSource damageSource = ((IExplosionDuck) originalExplosion).chunked_getDamageSource();
+          
+          for (Map.Entry<Entity, Float> entry : accumulatedDamage.entrySet()) {
+              Entity entity = entry.getKey();
+              float accumulated = entry.getValue();
+              
+              if (entity.isAlive() && !damagedEntities.contains(entity)) {
+                  // Reset invulnerability timer to allow continuous damage during SPREAD
+                  if (entity instanceof LivingEntity living) {
+                      living.invulnerableTime = 0;
+                  }
+                  entity.hurt(damageSource, accumulated);
+                  damagedEntities.add(entity);
+              }
+          }
+          
+          // Clear accumulated damage for next tick
+          accumulatedDamage.clear();
+      }
  
      /**
       * Applies accumulated knockback to entities for SPREAD timing.

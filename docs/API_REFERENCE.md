@@ -265,10 +265,12 @@ All timing commands follow the same pattern:
 
 | Command | Description |
 |---------|-------------|
-| [`SpawnExplosionCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/SpawnExplosionCommand.java) | Spawn test explosion |
-| [`TestCubeCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/TestCubeCommand.java) | Create test cube environment |
-| [`ExplosionStatsCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/ExplosionStatsCommand.java) | Show queue statistics |
-| [`SpawnTestEntityCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/SpawnTestEntityCommand.java) | Spawn test entities and report damage |
+| [`SpawnExplosionCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/SpawnExplosionCommand.java) | Spawn test explosion using level.explode() (usage: `spawnexplosion [position] [radius]`) |
+| [`TestCubeCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/TestCubeCommand.java) | Create test cube environment (usage: `testcube [position] [size] [block]`, defaults: size=5, block=minecraft:dirt) |
+| [`ExplosionStatsCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/ExplosionStatsCommand.java) | Show queue statistics and configuration |
+| [`SpawnTestEntityCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/SpawnTestEntityCommand.java) | Spawn test entities (movement speed set to 0) and report damage/position |
+| [`TestEntityDamageReportCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/TestEntityDamageReportCommand.java) | Report health of all test entities |
+| [`TestEntityPositionCommand`](../src/main/java/com/github/justoboy/chunkedexplosions/common/command/TestEntityPositionCommand.java) | Report positions and motion of all test entities |
 
 ### Benchmark Commands
 

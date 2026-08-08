@@ -4,6 +4,9 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -17,36 +20,59 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Command to create test environments with uniform blocks.
+ * Usage: testcube [position] [size] [block]
  */
 public class TestCubeCommand {
 
     static {
-        CommandComments.addComment("testcube", "Create a cube of uniform blocks. Usage: testcube <size> <block> [position]");
+        CommandComments.addComment("testcube", "Create a cube of uniform blocks. Usage: testcube [position] [size] [block]");
     }
+
+    private static final SuggestionProvider<CommandSourceStack> POSITION_SUGGESTER = (context, builder) -> {
+        Vec3 pos = context.getSource().getPosition();
+        builder.suggest(String.format("%.1f %.1f %.1f", pos.x, pos.y, pos.z));
+        return builder.buildFuture();
+    };
 
     public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext buildContext) {
         return Commands.literal("testcube")
-                .then(Commands.argument("size", IntegerArgumentType.integer(1, 100))
-                        .then(Commands.argument("block", StringArgumentType.word())
-                                .suggests(SuggestionProviders::blockSuggestions)
-                                .executes(TestCubeCommand::createCubeAtPlayer)
-                                .then(Commands.argument("position", Vec3Argument.vec3())
-                                        .executes(TestCubeCommand::createCubeAtPos)
+                // testcube [<position>] [<size>] [<block>]
+                // Position defaults to player position, size defaults to 5, block defaults to minecraft:dirt
+                .then(Commands.argument("position", Vec3Argument.vec3())
+                        .suggests(POSITION_SUGGESTER)
+                        .then(Commands.argument("size", IntegerArgumentType.integer(1, 100))
+                                .then(Commands.argument("block", StringArgumentType.greedyString())
+                                        .suggests(SuggestionProviders::blockSuggestions)
+                                        .executes(TestCubeCommand::createCubeAtPosWithSizeAndBlock)
                                 )
+                                .executes(TestCubeCommand::createCubeAtPosWithSize)
                         )
-                );
+                        .executes(TestCubeCommand::createCubeAtPos)
+                )
+                .executes(TestCubeCommand::createCubeDefault);
     }
 
-    private static int createCubeAtPlayer(CommandContext<CommandSourceStack> context) {
-        int size = IntegerArgumentType.getInteger(context, "size");
-        String blockName = StringArgumentType.getString(context, "block");
+    private static int createCubeDefault(CommandContext<CommandSourceStack> context) {
         var pos = context.getSource().getPosition();
-        return createCube(context, size, blockName, pos.x, pos.y, pos.z);
+        return createCube(context, 5, "minecraft:dirt", pos.x, pos.y, pos.z);
     }
 
     private static int createCubeAtPos(CommandContext<CommandSourceStack> context) {
+        Vec3 pos = Vec3Argument.getVec3(context, "position");
+        return createCube(context, 5, "minecraft:dirt", pos.x, pos.y, pos.z);
+    }
+
+    private static int createCubeAtPosWithSize(CommandContext<CommandSourceStack> context) {
+        int size = IntegerArgumentType.getInteger(context, "size");
+        Vec3 pos = Vec3Argument.getVec3(context, "position");
+        return createCube(context, size, "minecraft:dirt", pos.x, pos.y, pos.z);
+    }
+
+    private static int createCubeAtPosWithSizeAndBlock(CommandContext<CommandSourceStack> context) {
         int size = IntegerArgumentType.getInteger(context, "size");
         String blockName = StringArgumentType.getString(context, "block");
         Vec3 pos = Vec3Argument.getVec3(context, "position");
@@ -68,13 +94,16 @@ public class TestCubeCommand {
         ServerLevel level = context.getSource().getLevel();
         BlockState blockState = parseBlockState(blockName);
 
-        int halfSize = size / 2;
-        int startX = (int) Math.floor(centerX - halfSize);
-        int endX = (int) Math.ceil(centerX + halfSize);
-        int startY = (int) Math.floor(centerY - halfSize);
-        int endY = (int) Math.ceil(centerY + halfSize);
-        int startZ = (int) Math.floor(centerZ - halfSize);
-        int endZ = (int) Math.ceil(centerZ + halfSize);
+        // Calculate start and end positions to create exactly 'size' blocks per dimension
+        // Use symmetric centering around the given position
+        int startX = (int) Math.floor(centerX - size / 2.0);
+        int endX = startX + size - 1;
+        
+        int startY = (int) Math.floor(centerY - size / 2.0);
+        int endY = startY + size - 1;
+        
+        int startZ = (int) Math.floor(centerZ - size / 2.0);
+        int endZ = startZ + size - 1;
 
         int blocksPlaced = 0;
 

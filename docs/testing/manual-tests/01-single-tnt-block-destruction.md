@@ -38,37 +38,20 @@ Place TNT in the center of each material type at the same height. Example layout
 
 1. **Prepare Test Area:**
    ```
-   /chunkedexplosions testclear 50
-   /chunkedexplosions testcube 30 stone
+   /chunkedexplosions testcube 50 stone
    ```
 
-2. **Start Recording:**
+2. **Stand at center and spawn explosion:**
    ```
-   /chunkedexplosions recordexplosion start
+   /chunkedexplosions spawnexplosion
    ```
+   Note: The spawnexplosion command now takes position first, then radius. If no position is specified, it uses the player's position. Default radius is 4.0.
 
-3. **Place and Prime TNT:**
-   - Place TNT at center of the cube
-   - Prime TNT
+3. **Explosion triggers instantly via level.explode()**
 
-4. **Stop Recording:**
+4. **Monitor queue during explosion:**
    ```
-   /chunkedexplosions recordexplosion stop
-   ```
-
-5. **View Results:**
-   ```
-   /chunkedexplosions recordexplosion report
-   ```
-
-6. **Set Baseline (optional - for comparison):**
-   ```
-   /chunkedexplosions compareexplosion baseline set
-   ```
-
-7. **Save to History:**
-   ```
-   /chunkedexplosons compareexplosion history test1
+   /chunkedexplosions explosionstats
    ```
 
 ### Manual Testing (Without Commands)
@@ -125,33 +108,8 @@ After testing, check for these issues:
 - **Resistance issues:** Obsidian or bedrock that was destroyed
 - **Block duplication:** Any duplicate items or blocks appearing
 
-## Comparison with Vanilla
-
-If you have access to a vanilla Minecraft instance:
-1. Build the exact same setup in vanilla
-2. Prime TNT in same positions
-3. Take screenshots of both worlds
-4. Compare crater patterns side by side
-
-### Automated Comparison (Recommended)
-
-For automated comparison:
-1. In chunked explosions world:
-   ```
-   /chunkedexplosons recordexplosion start
-   [Prime TNT]
-   /chunkedexplosons recordexplosion stop
-   /chunkedexplosons compareexplosion history vanilla_test
-   ```
-
-2. Compare multiple runs:
-   ```
-   /chunkedexplosons compareexplosion compare
-   ```
-   This will show match percentage and list different blocks.
-
 ## Notes
 
 - Results may vary slightly due to random seed differences
-- For exact determinism testing, use the `/spawntnt <seed>` command if available
+- For deterministic testing, use the same position each time (spawnexplosion uses the same seed calculation)
 - Document any deviations from expected behavior

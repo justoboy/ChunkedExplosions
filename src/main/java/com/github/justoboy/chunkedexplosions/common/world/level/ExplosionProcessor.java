@@ -347,6 +347,39 @@ public class ExplosionProcessor {
     }
 
     /**
+     * Gets the total remaining blocks across all active explosions.
+     * This is the actual number of blocks left to destroy, not a theoretical limit.
+     */
+    public int getTotalRemainingBlocks() {
+        int total = 0;
+        for (ExplosionState state : activeQueue) {
+            total += state.getRemainingBlocks();
+        }
+        return total;
+    }
+
+    /**
+     * Gets the total blocks queued for destruction across all explosions
+     * (awaiting + active).
+     */
+    public int getTotalQueuedBlocks() {
+        int total = 0;
+        for (ExplosionState state : awaitingQueue) {
+            if (state.isPreCalculationComplete()) {
+                total += state.getRemainingBlocks();
+            } else {
+                // For awaiting explosions that haven't been pre-calculated,
+                // we don't know the block count yet
+                total += 0; // Will be determined after pre-calculation
+            }
+        }
+        for (ExplosionState state : activeQueue) {
+            total += state.getRemainingBlocks();
+        }
+        return total;
+    }
+
+    /**
      * Checks if the processor is empty (no pending explosions).
      */
     public boolean isEmpty() {

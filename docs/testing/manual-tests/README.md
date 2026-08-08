@@ -121,16 +121,18 @@ The following commands have been implemented to assist with testing. All command
 
 | Command | Description |
 |-- |--|
-| `testcube <size> <block>` | Create a uniform block cube for testing |
-| `sptestentity <entity> <count> <radius> [angle]` | Spawn test entities with NoAI:1b automatically |
+| `testcube [position] [size] [block]` | Create a uniform block cube for testing (defaults: size=5, block=minecraft:dirt) |
+| `sptestentity <entity> <count> <radius> <angle> [position]` | Spawn test entities with movement speed set to 0 (line formation when angle=0, circular when angle>0) |
+| `sptestentity damageReport` | Report health of all test entities |
+| `sptestentity positionReport` | Report positions and motion of all test entities |
 
 ### Explosion Testing Commands
 
 | Command | Description |
 |-- |--|
-| `spawnexplosion [radius]` | Spawn an explosion at player position |
-| `explosionstats` | Show current queue statistics |
-| `benchmarkexplosion <iterations>` | Stress test by spawning multiple TNT |
+| `spawnexplosion [position] [radius]` | Spawn an explosion at position with specified radius (defaults to 4.0) |
+| `explosionstats` | Show current queue statistics and configuration settings |
+| `benchmarkexplosion <iterations> [position]` | Stress test by spawning multiple explosions |
 
 ### Entity Effect Testing Commands
 
@@ -142,33 +144,57 @@ The following commands have been implemented to assist with testing. All command
 ### Example Usage
 
 ```bash
-# Create test environment
+# Create test environment (defaults to 5x5x5 dirt cube at player position)
+/chunkedexplosions testcube
+
+# Create larger test cube
 /chunkedexplosions testcube 30 stone
 
-# Spawn test entities in a circle (all with NoAI:1b)
+# Spawn test entities in a circle (movement speed set to 0)
 /chunkedexplosions sptestentity iron_golem 8 4 45
 
-# Trigger test explosion at player position
+# Spawn test entities in a line
+/chunkedexplosions sptestentity iron_golem 5 2 0
+
+# Trigger test explosion at player position (default radius 4.0)
 /chunkedexplosions spawnexplosion
+
+# Trigger test explosion with custom radius
+/chunkedexplosions spawnexplosion 10.0
 
 # Monitor queue during stress testing
 /chunkedexplosions explosionstats
 
-# Run stress test with multiple TNT
+# Run stress test with multiple explosions
 /chunkedexplosions benchmarkexplosion 100
+
+# Report test entity positions
+/chunkedexplosions sptestentity positionReport
 ```
 
-All entities spawned via `/chunkedexplosions sptestentity` automatically have `NoAI:1b` applied, ensuring they stay perfectly still for accurate damage/knockback testing.
+All entities spawned via `/chunkedexplosions sptestentity` have their movement speed set to 0, ensuring they stay perfectly still for accurate damage/knockback testing while still allowing them to receive knockback and respond to physics.
 
 ## Implemented Dev Commands
 
-The following 5 dev commands are fully implemented:
+The following dev commands are fully implemented:
 
-1. `testcube` - Create test environments
-2. `sptestentity` - Spawn stationary test entities (auto NoAI:1b)
-3. `spawnexplosion` - Trigger test explosions
-4. `explosionstats` - Monitor queue
-5. `benchmarkexplosion` - Stress testing
+1. `testcube` - Create test environments (with optional position, size, and block parameters)
+2. `sptestentity` - Spawn stationary test entities (movement speed set to 0)
+3. `sptestentity damageReport` - Report entity health
+4. `sptestentity positionReport` - Report entity positions and motion
+5. `spawnexplosion` - Trigger test explosions via level.explode()
+6. `explosionstats` - Monitor queue and display configuration
+7. `benchmarkexplosion` - Stress testing
+
+## Removed Commands
+
+The following commands have been removed:
+
+| Command | Reason |
+|---|---|
+| `testclear` | Replaced by `testcube` (testcube now handles both creation and clearing) |
+| `recordexplosion` | Removed - not implemented |
+| `compareexplosion` | Removed - not implemented |
 
 ## Next Steps
 

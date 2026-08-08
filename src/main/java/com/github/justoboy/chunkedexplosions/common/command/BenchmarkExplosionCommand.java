@@ -3,6 +3,9 @@ package com.github.justoboy.chunkedexplosions.common.command;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -15,6 +18,8 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Command to run automated explosion benchmarks.
  * Usage: benchmarkexplosion <iterations> [position]
@@ -25,10 +30,17 @@ public class BenchmarkExplosionCommand {
         CommandComments.addComment("benchmarkexplosion", "Run explosion benchmark. Usage: benchmarkexplosion <iterations> [position]");
     }
 
+    private static final SuggestionProvider<CommandSourceStack> POSITION_SUGGESTER = (context, builder) -> {
+        Vec3 pos = context.getSource().getPosition();
+        builder.suggest(String.format("%.1f %.1f %.1f", pos.x, pos.y, pos.z));
+        return builder.buildFuture();
+    };
+
     public static ArgumentBuilder<CommandSourceStack, ?> register(CommandBuildContext buildContext) {
         return Commands.literal("benchmarkexplosion")
                 .then(Commands.argument("iterations", IntegerArgumentType.integer(1, 100))
                         .then(Commands.argument("position", Vec3Argument.vec3())
+                                .suggests(POSITION_SUGGESTER)
                                 .executes(BenchmarkExplosionCommand::runBenchmarkAtPos)
                         )
                         .executes(BenchmarkExplosionCommand::runBenchmark));

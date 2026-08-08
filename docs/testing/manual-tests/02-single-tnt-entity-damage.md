@@ -43,13 +43,13 @@ Use the `/sptestentity` command to spawn entities in a precise pattern:
 Before explosion, record health using F3 debug screen.
 
 **Dev Command Method:**
-Use `/testentitydamage` before and after the explosion to automatically track health changes:
+Use `/sptestentity damageReport` before and after the explosion to automatically track health changes:
 ```
 # Before explosion
-/chunkedexplosions testentitydamage
+/chunkedexplosions sptestentity damageReport
 
 # After explosion
-/chunkedexplosions testentitydamage
+/chunkedexplosions sptestentity damageReport
 ```
 
 ## Execution
@@ -58,7 +58,7 @@ Use `/testentitydamage` before and after the explosion to automatically track he
 
 1. **Prepare environment:**
    ```
-   /chunkedexplosions testclear 40
+   /chunkedexplosions testcube 40 stone
    ```
 
 2. **Spawn test entities:**
@@ -68,29 +68,37 @@ Use `/testentitydamage` before and after the explosion to automatically track he
 
 3. **Record initial health:**
    ```
-   /chunkedexplosions testentitydamage
+   /chunkedexplosions sptestentity damageReport
    ```
 
-4. **Prime TNT and observe:**
-
-5. **Check damage:**
+4. **Stand at center and spawn explosion:**
    ```
-   /chunkedexplosions testentitydamage
+   /chunkedexplosions spawnexplosion
+   ```
+
+5. **Explosion triggers instantly**
+
+6. **Check damage:**
+   ```
+   /chunkedexplosions sptestentity damageReport
    ```
 
 ### Manual Execution
 
 1. Ensure all entities have full health (20 hearts / 10 damage points for golems, 20 hearts for players)
 
-2. Place TNT at exact center (0, 0, 0 relative to platform)
+2. Stand at exact center (0, 0, 0 relative to platform)
 
 3. Prepare to record damage (have screenshots ready or use mod)
 
-4. Prime TNT
+4. Use `/chunkedexplosions spawnexplosion`
+   Note: The spawnexplosion command now takes position first, then radius.
 
-5. Record health AFTER explosion
+5. **Explosion triggers instantly**
 
-6. If entities survive, reset health for next test
+6. Record health AFTER explosion using `/chunkedexplosions sptestentity damageReport`
+
+7. If entities survive, reset health for next test
 
 ## Expected Results
 

@@ -43,15 +43,13 @@ Use F3 to record exact coordinates:
 
 3. Record F3 coordinates precisely
 
-4. Place TNT at exact center
+4. Stand at center and use: `/chunkedexplosions spawnexplosion`
+   Note: The spawnexplosion command now takes position first, then radius.
 
-5. Prepare for knockback recording
+5. **Explosion triggers instantly**
+6. After entities stop moving, record final positions
 
-6. Prime TNT
-
-7. After entities stop moving, record final positions
-
-8. Calculate knockback vector:
+7. Calculate knockback vector:
    ```
    delta_x = final_x - initial_x
    delta_z = final_z - initial_z

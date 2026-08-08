@@ -4,6 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import com.github.justoboy.chunkedexplosions.common.command.TestEntityPositionCommand;
 
 /**
  * Registers all chunked explosions commands under the {@code /chunkedexplosions} command.
@@ -32,6 +33,7 @@ import net.minecraft.commands.Commands;
  *   <li>{@code testcube} - Create uniform block cube for testing</li>
  *   <li>{@code explosionstats} - Show queue statistics</li>
  *   <li>{@code sptestentity} - Spawn test entities at precise positions</li>
+ *   <li>{@code testentitydamage} - Report health of test entities</li>
  * </ul>
  */
 public class ChunkedExplosionsCommand {
@@ -62,6 +64,8 @@ public class ChunkedExplosionsCommand {
                         .then(TestCubeCommand.register(buildContext))
                         .then(ExplosionStatsCommand.register(buildContext))
                         .then(SpawnTestEntityCommand.register(buildContext))
+                        .then(TestEntityDamageReportCommand.register(buildContext))
+                        .then(TestEntityPositionCommand.register(buildContext))
                         .then(BenchmarkExplosionCommand.register(buildContext))
         );
     }

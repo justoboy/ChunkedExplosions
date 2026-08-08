@@ -637,10 +637,12 @@ Key log messages to watch:
 
 | Command | Purpose |
 |---------|---------|
-| `/chunkedexplosions testcube` | Create uniform block test environment |
-| `/chunkedexplosions spawnexplosion` | Spawn explosion at player position |
-| `/chunkedexplosions explosionstats` | View queue statistics |
-| `/chunkedexplosions sptestentity` | Spawn test entities |
+| `/chunkedexplosions testcube` | Create uniform block test environment (usage: `testcube [position] [size] [block]`, defaults: size=5, block=minecraft:dirt) |
+| `/chunkedexplosions spawnexplosion` | Spawn explosion at player position using level.explode() (usage: `spawnexplosion [position] [radius]`) |
+| `/chunkedexplosions explosionstats` | View queue statistics and configuration |
+| `/chunkedexplosions sptestentity` | Spawn test entities (movement speed set to 0) |
+| `/chunkedexplosions sptestentity damageReport` | Report health of all test entities |
+| `/chunkedexplosions sptestentity positionReport` | Report positions and motion of all test entities |
 
 ### Performance Testing
 
